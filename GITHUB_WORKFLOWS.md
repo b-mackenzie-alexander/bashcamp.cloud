@@ -241,14 +241,43 @@ A `.pre-commit-config.yaml` will be provided when the API language is decided
 
 ## Environment variables required by workflows
 
+**Repository secrets** (Settings → Secrets and variables → Actions):
 ```
-Secrets (set in GitHub repository settings):
-  JWT_SECRET          — used by API in test runs (if integration tests are added)
-  GHCR_TOKEN          — GitHub token for pushing to Container Registry (weekly.yml)
+JWT_SECRET    — used by API in test/integration runs once those are written
+```
 
-No other secrets required for MVP workflows. TruffleHog uses GITHUB_TOKEN
-(automatically available) for its GitHub integration.
+**Automatic tokens — no setup required:**
 ```
+GITHUB_TOKEN  — injected by Actions into every workflow run automatically.
+                Used by TruffleHog, Trivy action, gh CLI calls, and GHCR pushes.
+                No separate PAT or GHCR_TOKEN needed.
+```
+
+**GHCR login in weekly.yml** (push base images to GitHub Container Registry):
+```yaml
+- name: Log in to GHCR
+  uses: docker/login-action@v3
+  with:
+    registry: ghcr.io
+    username: ${{ github.actor }}
+    password: ${{ secrets.GITHUB_TOKEN }}
+```
+`GITHUB_TOKEN` covers container pushes within the same user account when the
+workflow job declares `packages: write`.
+
+**Standard permissions block — apply to every workflow file:**
+```yaml
+permissions:
+  contents: read          # default for all jobs
+
+# Per-job overrides only when a job needs more:
+# packages: write         — weekly.yml GHCR push job
+# issues: write           — weekly.yml open-CVE-issue job
+# pull-requests: read     — ci.yml jobs reading PR metadata
+```
+
+Least-privilege: start with `contents: read` at the workflow level and elevate
+per-job only. This limits blast radius if a workflow is compromised.
 
 ---
 
