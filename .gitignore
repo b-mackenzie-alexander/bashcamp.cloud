@@ -1,0 +1,59 @@
+# ── Private planning docs ─────────────────────────────────────────────────────
+# These files contain in-progress thinking, historical notes, and internal
+# tracking. They are not part of the public project record.
+ROADMAP.md
+NOTES.md
+KNOWLEDGE.md
+CURRENT_WORK.md
+
+# ── Secrets and environment ───────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+config/users.json        # credential store — never commit, generate offline
+
+# ── OS and editor artifacts ───────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.code-workspace
+
+# ── Node.js (if API is Express) ───────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+
+# ── Python (if API is FastAPI) ────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+env/
+.Python
+
+# ── Docker build artifacts ────────────────────────────────────────────────────
+# (nothing to ignore — Dockerfiles are tracked, images are not stored in repo)
+
+# ── CI artifacts ─────────────────────────────────────────────────────────────
+coverage/
+.coverage
+*.lcov
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/
