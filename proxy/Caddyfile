@@ -1,0 +1,17 @@
+bashcamp.cloud {
+	handle /api/* {
+		reverse_proxy localhost:3000
+	}
+
+	@terminal {
+		path_regexp terminal ^/t/([0-9]+)/
+	}
+	handle @terminal {
+		reverse_proxy localhost:{http.regexp.terminal.1}
+	}
+
+	handle {
+		root * /var/www/bashcamp
+		file_server
+	}
+}
