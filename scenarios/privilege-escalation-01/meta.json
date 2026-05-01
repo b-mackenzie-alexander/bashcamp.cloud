@@ -1,0 +1,13 @@
+{
+  "id": "privilege-escalation-01",
+  "title": "Broken Sudoers",
+  "distro": "ubuntu-22.04",
+  "distro_pair": "privilege-escalation-01-rocky",
+  "difficulty": "beginner",
+  "duration_minutes": 20,
+  "timed": false,
+  "dynamic": false,
+  "objectives": ["1.5", "3.1", "3.3", "3.4"],
+  "requires_cap_sys_admin": true,
+  "description": "A syntax error in /etc/sudoers has locked out privilege escalation. Restore sudo access without logging in as root."
+}
