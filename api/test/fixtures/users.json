@@ -1,0 +1,8 @@
+{
+  "users": [
+    {
+      "username": "student01",
+      "password_hash": "$2a$10$replace-with-test-fixture"
+    }
+  ]
+}

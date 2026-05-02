@@ -10,7 +10,8 @@ CURRENT_WORK.md
 .env
 .env.*
 !.env.example
-config/users.json        # credential store — never commit, generate offline
+# Credential store — never commit, generate offline
+config/users.json
 
 # ── OS and editor artifacts ───────────────────────────────────────────────────
 .DS_Store
