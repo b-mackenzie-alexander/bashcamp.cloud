@@ -2,6 +2,7 @@
 
 const Docker = require('dockerode');
 const { spawn, execFileSync } = require('child_process');
+const config = require('./config');
 
 const docker = new Docker();
 
@@ -23,7 +24,7 @@ async function createContainer(sessionId, distro) {
     CgroupnsMode: 'host',
     Binds: [
       '/sys/fs/cgroup:/sys/fs/cgroup:ro',
-      `${process.env.SCENARIOS_HOST_PATH}:/scenarios:ro`,
+      `${config.scenariosHostPath}:/scenarios:ro`,
     ],
   };
 
@@ -58,7 +59,7 @@ function spawnTtyd(port, sessionId, terminalSecret, onExit) {
     '--credential', `${sessionId}:${terminalSecret}`,
     'docker', 'exec', '-it', `session-${sessionId}`, '/bin/bash',
   ], { detached: false });
-  proc.on('error', err => console.error(`ttyd spawn error (session ${sessionId}):`, err.message));
+  proc.on('error', err => console.error('ttyd spawn error (session %s): %s', sessionId, err.message));
   proc.on('exit', onExit);
   return proc.pid;
 }

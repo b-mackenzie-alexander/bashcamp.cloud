@@ -1,19 +1,18 @@
 'use strict';
 
 const fs = require('fs');
-const path = require('path');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const config = require('./config');
 
-const usersFile = process.env.USERS_FILE ?? path.join(__dirname, '../../config/users.json');
-const { users } = JSON.parse(fs.readFileSync(usersFile, 'utf8'));
+const { users } = JSON.parse(fs.readFileSync(config.usersFile, 'utf8'));
 
 function jwtMiddleware(req, res, next) {
   const header = req.headers.authorization ?? '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
   if (!token) return res.status(401).json({ error: 'missing token' });
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    const payload = jwt.verify(token, config.jwtSecret);
     req.user = { userId: payload.userId };
     next();
   } catch {
