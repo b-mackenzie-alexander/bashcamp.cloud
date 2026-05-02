@@ -10,34 +10,22 @@ const IMAGE = {
   'rocky-9': 'bashcamp/rocky-9-base',
 };
 
-// PRIVILEGED_MODE=true uses --privileged for local macOS smoke testing.
-// Production (Hetzner amd64 Linux) uses the capability set below.
-// See KNOWLEDGE.md: "macOS Apple Silicon — systemd containers require --privileged locally"
-const privileged = process.env.PRIVILEGED_MODE === 'true';
-
 async function createContainer(sessionId, distro) {
   const containerName = `session-${sessionId}`;
-  const hostConfig = privileged
-    ? {
-        Privileged: true,
-        NetworkMode: 'bashcamp-net',
-        Tmpfs: { '/run': '', '/run/lock': '' },
-        Binds: [`${process.env.SCENARIOS_HOST_PATH}:/scenarios:ro`],
-      }
-    : {
-        Memory: 512 * 1024 * 1024,
-        NanoCpus: 1_000_000_000,
-        NetworkMode: 'bashcamp-net',
-        CapDrop: ['ALL'],
-        CapAdd: ['CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'KILL', 'SETUID', 'SETGID', 'SYS_ADMIN'],
-        SecurityOpt: ['no-new-privileges:false'],
-        Tmpfs: { '/run': '', '/run/lock': '' },
-        CgroupnsMode: 'host',
-        Binds: [
-          '/sys/fs/cgroup:/sys/fs/cgroup:ro',
-          `${process.env.SCENARIOS_HOST_PATH}:/scenarios:ro`,
-        ],
-      };
+  const hostConfig = {
+    Memory: 512 * 1024 * 1024,
+    NanoCpus: 1_000_000_000,
+    NetworkMode: 'bashcamp-net',
+    CapDrop: ['ALL'],
+    CapAdd: ['CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'KILL', 'SETUID', 'SETGID', 'SYS_ADMIN'],
+    SecurityOpt: ['no-new-privileges:false'],
+    Tmpfs: { '/run': '', '/run/lock': '' },
+    CgroupnsMode: 'host',
+    Binds: [
+      '/sys/fs/cgroup:/sys/fs/cgroup:ro',
+      `${process.env.SCENARIOS_HOST_PATH}:/scenarios:ro`,
+    ],
+  };
 
   const container = await docker.createContainer({
     name: containerName,
