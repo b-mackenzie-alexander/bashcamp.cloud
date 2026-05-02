@@ -11,7 +11,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/scenarios', require('./routes/scenarios'));
 app.use('/api/session', require('./routes/sessions'));
 
-setInterval(async () => {
+const cleanupTimer = setInterval(async () => {
   const now = Date.now();
   for (const [sessionId, session] of sessionStore.all()) {
     if (session.status === 'disconnected' && session.expiresAt && now > session.expiresAt) {
@@ -21,6 +21,11 @@ setInterval(async () => {
     }
   }
 }, 60_000);
+cleanupTimer.unref();
 
-const PORT = process.env.PORT ?? 3000;
-app.listen(PORT, () => console.log(`API listening on :${PORT}`));
+if (require.main === module) {
+  const PORT = process.env.PORT ?? 3000;
+  app.listen(PORT, () => console.log(`API listening on :${PORT}`));
+}
+
+module.exports = app;
