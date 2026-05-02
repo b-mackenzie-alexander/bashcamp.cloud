@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Bashcamp</title>
   <link rel="icon" href="data:,">
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="vendor/marked.umd.js"></script>
+  <script src="vendor/purify.min.js"></script>
   <style>
     :root {
       --bg: #f4f2ec;
@@ -456,26 +457,36 @@
       for (const scenario of state.scenarios) {
         const card = document.createElement('article');
         card.className = 'scenario-card';
-        card.innerHTML = `
-          <div>
-            <h2>${scenario.title}</h2>
-            <p>${scenario.description}</p>
-          </div>
-          <div class="meta">
-            <span class="pill">${scenario.distro}</span>
-            <span class="pill">${scenario.difficulty}</span>
-            <span class="pill">${scenario.duration_minutes} min</span>
-          </div>
-          <button type="button">Start lab</button>
-        `;
-        card.querySelector('button').addEventListener('click', () => startScenario(scenario.id));
+
+        const summary = document.createElement('div');
+        const title = document.createElement('h2');
+        title.textContent = scenario.title;
+        const description = document.createElement('p');
+        description.textContent = scenario.description;
+        summary.append(title, description);
+
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+        for (const value of [scenario.distro, scenario.difficulty, `${scenario.duration_minutes} min`]) {
+          const pill = document.createElement('span');
+          pill.className = 'pill';
+          pill.textContent = value;
+          meta.append(pill);
+        }
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = 'Start lab';
+        button.addEventListener('click', () => startScenario(scenario.id));
+
+        card.append(summary, meta, button);
         els.scenarioList.append(card);
       }
     }
 
     async function loadReadme(scenarioId) {
       const result = await api(`/api/scenarios/${encodeURIComponent(scenarioId)}/readme`);
-      els.readme.innerHTML = marked.parse(result.markdown);
+      els.readme.innerHTML = DOMPurify.sanitize(marked.parse(result.markdown));
     }
 
     async function showLab(session) {
