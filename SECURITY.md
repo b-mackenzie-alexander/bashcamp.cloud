@@ -51,6 +51,10 @@ remapping (`userns-remap`) will provide additional defense-in-depth.
 - JWT secrets and all credentials are environment variables, never in source code
 - Terminal access is gated by per-session HTTP Basic Auth credentials generated
   at session start and never written to disk or logged
+- Terminal credentials are not embedded in URLs. The API stores the terminal
+  credential in an HttpOnly cookie scoped to `/t/`, and Caddy validates that cookie
+  with `/api/session/terminal-auth` before injecting the upstream ttyd Basic Auth
+  header.
 - Terminal ports (9000-9099) are never directly exposed — all traffic routes
   through Caddy over HTTPS
 - TruffleHog scans every PR and weekly for secrets committed to the repository
@@ -60,8 +64,8 @@ remapping (`userns-remap`) will provide additional defense-in-depth.
 - The platform is not exposed to anonymous internet users — credentials are
   distributed by the instructor
 - All API endpoints require a valid JWT in the `Authorization` header
-- Terminal access requires both a valid Caddy-proxied URL (path includes session ID)
-  and the per-session Basic Auth credential
+- Terminal access requires both a valid Caddy-proxied URL (path includes the ttyd
+  port) and a valid per-session terminal cookie
 - Caddy enforces TLS on all connections — no plaintext HTTP accepted
 
 ### Dependency vulnerabilities
@@ -75,6 +79,9 @@ remapping (`userns-remap`) will provide additional defense-in-depth.
 ---
 
 ## What we scan and when
+
+These are the intended automated gates for Milestone 7. Until workflow files are
+implemented, run the corresponding local checks before opening or merging PRs.
 
 | What | Tool | When |
 |---|---|---|
@@ -119,6 +126,11 @@ Mitigations:
 (9000-9099). The VPS firewall (UFW) blocks all external access to these ports.
 Students access terminals exclusively through Caddy's HTTPS proxy.
 
+**Terminal credentials stay out of URLs.** The frontend receives clean terminal
+URLs such as `/t/9001/`. Caddy uses `forward_auth` to ask the API whether the
+student's HttpOnly terminal cookie is valid for that port, then forwards the
+corresponding Basic Auth header only to ttyd.
+
 **Static credentials for MVP.** The credential store is a local JSON file with
 bcrypt-hashed passwords. No database, no network auth service, no attack surface
 on the auth layer beyond the API endpoint itself. Post-MVP: evaluate moving to a
@@ -128,9 +140,9 @@ proper identity provider if the cohort grows.
 
 ## Security posture: DevSecOps from day one
 
-Security is a baseline, not a phase. The CI/CD pipeline enforces security gates
-on every contribution. Reviewers cannot merge code that fails Trivy, TruffleHog,
-or shellcheck. The goal is to make insecure contributions structurally impossible,
-not to rely on reviewer attention.
+Security is a baseline, not a phase. The Milestone 7 CI/CD pipeline is specified
+to enforce security gates on every contribution. Until those workflow files land,
+reviewers should require the same checks manually. The goal is to make insecure
+contributions structurally impossible, not to rely on reviewer attention.
 
 See `GITHUB_WORKFLOWS.md` for the full CI/CD pipeline specification.

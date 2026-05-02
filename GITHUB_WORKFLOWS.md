@@ -18,7 +18,9 @@ feat/*, fix/*, doc/*, hotfix/* ──► develop ──► main
 - Feature branches merge to `develop`
 - `develop` merges to `main` (scheduled releases or milestone completions)
 - `hotfix/*` branches may merge directly to `main` and back-merge to `develop`
-- Direct pushes to `develop` or `main` are warned on (non-blocking for MVP)
+- Direct pushes to `develop` or `main` are blocked by branch protection except
+  administrator bypasses
+- Repository merge policy is squash-only; merge commits and rebase merges are disabled
 - All PR workflows use `concurrency: cancel-in-progress: true`
 - All workflows declare `permissions: contents: read`
 
@@ -45,8 +47,8 @@ Steps:
 ```
 Runs: on push events only
 Steps:
-  - Check if commit message matches PR merge patterns
-    (starts with "Merge pull request #" or ends with "(#NNN)")
+  - Check if commit message matches accepted merge patterns
+    (squash commit from GitHub PR merge or administrator bypass)
   - If not a merge commit: emit ::warning:: (non-blocking in MVP)
   - Warning message: who pushed, to which branch, commit SHA
 ```
@@ -234,8 +236,9 @@ pre-commit install
 pre-commit install --hook-type pre-push
 ```
 
-A `.pre-commit-config.yaml` will be provided when the API language is decided
-(affects which language runtime is in the hook environment).
+A `.pre-commit-config.yaml` can be added with the Milestone 7 workflow
+implementation. The API language is now Node.js, so hook commands should use
+Node.js for `scripts/validate-meta.js` and shellcheck for scenario scripts.
 
 ---
 

@@ -21,14 +21,14 @@ Student browser
 │                                                     │
 │  bashcamp.cloud/          → frontend (static HTML)  │
 │  bashcamp.cloud/api/*     → session API             │
-│  bashcamp.cloud/t/:id/*   → ttyd (terminal proxy)  │
+│  bashcamp.cloud/t/:port/* → ttyd (terminal proxy)  │
 └──────────┬──────────────────────────┬───────────────┘
            │                          │
            ▼                          ▼
     ┌─────────────┐          ┌────────────────┐
     │ Session API │          │ ttyd processes │
-    │ (Node/     │          │ (one per active│
-    │  FastAPI)  │◄────────►│  session)      │
+    │ (Node.js / │          │ (one per active│
+    │  Express)  │◄────────►│  session)      │
     └──────┬──────┘          └───────┬────────┘
            │                         │
            ▼                         ▼
@@ -67,7 +67,15 @@ bashcamp.cloud {
         path_regexp terminal ^/t/([0-9]+)/
     }
     handle @terminal {
-        reverse_proxy localhost:{http.regexp.terminal.1}
+        forward_auth localhost:3000 {
+            uri /api/session/terminal-auth
+            header_up X-Forwarded-Port {http.regexp.terminal.1}
+            copy_headers X-Ttyd-Authorization
+        }
+
+        reverse_proxy localhost:{http.regexp.terminal.1} {
+            header_up Authorization {http.request.header.X-Ttyd-Authorization}
+        }
     }
 
     handle {
@@ -77,10 +85,12 @@ bashcamp.cloud {
 }
 ```
 
-The `@terminal` named matcher captures the port number from the path using a regex
-capture group. `{http.regexp.terminal.1}` resolves to that captured value at request
-time, so `/t/9001/` proxies to `localhost:9001`. No `args.id` placeholder — that
-does not exist in Caddy v2.
+The `@terminal` named matcher captures the ttyd port number from the path using a
+regex capture group. `{http.regexp.terminal.1}` resolves to that captured value at
+request time, so `/t/9001/` proxies to `localhost:9001`. No `args.id` placeholder —
+that does not exist in Caddy v2. Before proxying terminal traffic, Caddy calls
+`/api/session/terminal-auth`; the API validates the student's HttpOnly terminal
+cookie and returns the Basic Auth header that ttyd expects.
 
 TLS is automatic. Caddy provisions a certificate on first request to the domain
 and renews it transparently. Requires port 80 and 443 open on the VPS firewall
@@ -98,19 +108,21 @@ validation. Idle timeout enforcement.
 - Issue session tokens (JWT or signed random token)
 - Spawn Docker container for a scenario on session create
 - Start a ttyd process attached to that container, on an assigned port
-- Register the port mapping so Caddy can route `/t/:id/` to it
+- Register the port mapping so Caddy can route `/t/:port/` to it
 - Destroy container + ttyd process on reset, logout, or idle timeout
 - Enforce one active session per user
 
 **Endpoints:**
 ```
-POST /api/auth/login              { username, password } → { token, session_id }
+POST /api/auth/login              { username, password } → { token }
 POST /api/auth/logout             header: Authorization  → 200
-GET  /api/session                 header: Authorization  → { status, scenario, expires_at, disconnected_at }
-POST /api/session/start           { scenario_id }        → { session_id, terminal_url }
-POST /api/session/reconnect       header: Authorization  → { terminal_url } | 410 Gone (window expired)
-POST /api/session/reset           header: Authorization  → 200
+GET  /api/session                 header: Authorization  → { status, scenario_id, terminal_url, disconnected_at, expires_at }
+POST /api/session/start           { scenario_id }        → { session_id, terminal_url } + terminal cookie
+POST /api/session/reconnect       header: Authorization  → { terminal_url } + terminal cookie | 410 Gone
+POST /api/session/reset           header: Authorization  → { session_id, terminal_url } + terminal cookie
 GET  /api/scenarios               header: Authorization  → [ scenario meta list ]
+GET  /api/scenarios/:id/readme    header: Authorization  → { scenario_id, markdown }
+GET  /api/session/terminal-auth   Caddy forward_auth only → 204 + X-Ttyd-Authorization | 401
 ```
 
 `/api/session/reconnect` returns the new terminal URL if the container is still
@@ -121,12 +133,12 @@ on page load to determine whether to offer reconnect or start-fresh.
 **Session lifecycle:**
 
 ```
-[active] ──── 30 min no terminal input ───► [disconnected] ──── 15 min ───► [destroyed]
-                                                   │
-                                            user reconnects
-                                                   │
-                                                   ▼
-                                               [active]
+[active] ──── browser terminal disconnects ───► [disconnected] ──── 15 min ───► [destroyed]
+                                                     │
+                                              user reconnects
+                                                     │
+                                                     ▼
+                                                 [active]
 ```
 
 - **Active:** ttyd process running, WebSocket connection open, container live.
@@ -136,18 +148,18 @@ on page load to determine whether to offer reconnect or start-fresh.
   `POST /api/session/reconnect` within this window, the API spawns a new ttyd
   process against the same live container and returns a new `terminal_url`.
   The container state (including any in-progress work) is fully preserved.
-- **Destroyed:** After 30 minutes idle OR 15 minutes disconnected (whichever
-  comes first), the container and all state are destroyed. Maximum resource hold
-  is 45 minutes from last terminal input.
+- **Destroyed:** After the 15-minute reconnect window closes, the container and all
+  state are destroyed.
 
-A background process polls session state every 60 seconds. Idle time is tracked
-by recording the timestamp of the last ttyd process exit (the `--once` flag causes
-ttyd to exit when the WebSocket connection closes, providing a reliable activity
-signal without needing to inspect WebSocket traffic).
+A background process polls session state every 60 seconds. Current MVP behavior
+tracks disconnect time by recording when ttyd exits (the `--once` flag causes ttyd
+to exit when the WebSocket connection closes). Exact terminal-input idle detection
+is deferred until the platform has a terminal activity tracker or WebSocket-aware
+proxy layer.
 
-**Post-MVP:** A `store` function — persisting container state to a snapshot and
+**Post-MVP:** A store function — persisting container state to a snapshot and
 resuming it later — is architecturally feasible but out of scope for MVP. Sessions
-are ephemeral; no state survives beyond 45 minutes.
+are ephemeral; no state survives beyond the reconnect window after disconnect.
 
 **Credential store (MVP):**
 ```json
@@ -176,7 +188,8 @@ What the base image includes beyond stock Ubuntu 22.04:
   `iproute2`, `man-db`, `bash-completion`
 - User management tools: `passwd`, `shadow`, `sudo`
 - Service infrastructure: `systemd` (in compatible mode), `cron`, `rsyslog`
-- Pre-created user accounts that scenarios can reference (`kgarcia`, `jdeng`, etc.)
+- No scenario personas; scenario users such as `kgarcia` and `jdeng` are created
+  by `provision.sh`
 - A realistic `/etc/` structure — not minimal
 - `ttyd` is NOT in the container — it runs on the host, attached to the container
   via `docker exec`
@@ -242,20 +255,22 @@ ttyd --port ${ASSIGNED_PORT} \
      docker exec -it session-${SESSION_ID} /bin/bash
 ```
 
-Caddy proxies `/t/${SESSION_ID}/` to `localhost:${ASSIGNED_PORT}`.
+Caddy proxies `/t/${ASSIGNED_PORT}/` to `localhost:${ASSIGNED_PORT}`.
 
-**Auth rationale — Basic Auth over token query param:**
+**Auth rationale — HttpOnly cookie plus Caddy-injected Basic Auth:**
 `--credential` instructs ttyd to require an HTTP Basic Auth header on the WebSocket
-upgrade request. The browser sends the credential in the `Authorization` header;
-Caddy forwards it to ttyd. Because all traffic is over HTTPS, the credential is
-encrypted in transit. This approach adds zero round-trips (no token exchange step),
-introduces no measurable latency, and avoids embedding secrets in URLs (which appear
-in server logs). The credential is a per-session randomly generated secret stored
-only in the API's session map and never written to disk.
+upgrade request. The API issues a per-session terminal secret and stores it in an
+HttpOnly cookie scoped to `/t/`; terminal URLs returned to the frontend contain
+only the ttyd port path, never credentials. Caddy calls the API's
+`/api/session/terminal-auth` endpoint before proxying terminal traffic. If the
+cookie matches an active session and the requested port, the API returns
+`X-Ttyd-Authorization`; Caddy copies that value into the upstream `Authorization`
+header for ttyd. This keeps secrets out of URLs, browser history, and proxy logs
+while preserving ttyd's native Basic Auth gate.
 
 `--token` does not exist in ttyd. Do not use it.
 
-**Port allocation:** API maintains an in-memory map of session → port.
+**Port allocation:** API maintains an in-memory map of session to port.
 Ports 9000-9099 reserved for ttyd instances (supports 100 concurrent sessions,
 well above our needs).
 
@@ -354,13 +369,16 @@ Single `index.html`. No framework. No build step.
 2. **Scenario select** — list from GET `/api/scenarios` → POST `/api/session/start`
 3. **Lab** — scenario README rendered as markdown, embedded ttyd terminal iframe,
    reset button → POST `/api/session/reset`
+4. **Reconnect** — on page load, GET `/api/session`; active or disconnected sessions
+   call POST `/api/session/reconnect` to refresh terminal auth and iframe URL
 
 The terminal is an `<iframe>` pointing at the Caddy-proxied ttyd URL. This is
 intentionally minimal — the terminal is the product, not the UI around it.
 
-Markdown rendering uses `marked.js` via CDN — no build step, one script tag.
-No framework is introduced for MVP. If the frontend grows beyond one HTML file,
-that decision gets made then.
+Markdown rendering uses `marked.js` via CDN — no build step, one script tag. The
+README markdown is loaded through `GET /api/scenarios/:id/readme`, so the frontend
+does not need direct filesystem access. No framework is introduced for MVP. If the
+frontend grows beyond one HTML file, that decision gets made then.
 
 ---
 

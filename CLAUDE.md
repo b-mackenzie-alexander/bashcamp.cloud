@@ -57,7 +57,7 @@ individual studying for Linux certification.
 | Container runtime | Docker | Universal, well-documented, Claude Code native |
 | Reverse proxy / TLS | Caddy | Automatic Let's Encrypt, minimal config |
 | Browser terminal | ttyd | Lightweight, no client install required |
-| Session API | Node.js (Express) or Python (FastAPI) | Choose based on task; keep it small |
+| Session API | Node.js (Express) | Implemented for MVP; keep it small |
 | Base OS images | Ubuntu 22.04 LTS + Rocky Linux 9 | Covers Debian and RHEL exam families |
 | Domain | bashcamp.cloud (Porkbun) | Registered |
 | Target host | Hetzner CX32 (4 vCPU / 8GB RAM) | ~$8/month, sufficient for 4-5 concurrent |
@@ -93,12 +93,12 @@ bashcamp/
 │   │   ├── provision.sh       # applied to container at session start
 │   │   ├── meta.json          # title, objective, distro, difficulty, exam objectives
 │   │   └── README.md          # student-facing instructions + hints
-│   └── privilege-escalation/  # first scenario (maps to Linux+ obj 3.1/3.3/3.4)
+│   └── privilege-escalation-01/  # first scenario (maps to Linux+ obj 1.5/3.1/3.3/3.4)
 │       ├── provision.sh
 │       ├── meta.json
 │       └── README.md
 ├── api/
-│   ├── index.js (or main.py)
+│   ├── index.js
 │   ├── routes/
 │   │   ├── sessions.js        # create / destroy / status
 │   │   └── scenarios.js       # list available scenarios
@@ -108,6 +108,8 @@ bashcamp/
 │   └── Caddyfile
 ├── frontend/
 │   └── index.html             # MVP: login + start lab + terminal iframe + reset
+├── config/
+│   └── users.example.json     # credential store template; real users.json is local-only
 └── deploy/
     ├── setup.sh               # idempotent VPS bootstrap script
     └── docker-compose.yml     # production compose config
@@ -171,8 +173,8 @@ forbidden. Package installation at session time violates the 30-second startup
 budget and makes the scenario non-deterministic (network conditions, mirror
 availability). All packages must be pre-installed in the base image. If a scenario
 needs a tool that the base image lacks, the answer is a plugin — a Dockerfile
-extending the base image — not a runtime install. CI shellcheck will catch apt/dnf
-usage and block the PR.
+extending the base image — not a runtime install. Local validation should catch
+apt/dnf usage now; the Milestone 7 CI shellcheck gate will block it automatically.
 
 Scenario personas (`kgarcia`, `jdeng`, etc.) are **not** pre-created in the base
 image. They are scenario-specific characters created by `provision.sh`. The base
@@ -207,10 +209,10 @@ logger "sudo: pam_unix(sudo:auth): authentication failure"
 - No container gets `--privileged` flag unless a specific scenario explicitly requires it
   and it is documented in meta.json with justification
 - ttyd instances are not publicly exposed — all traffic routes through Caddy with
-  session token validation
+  API-backed terminal cookie validation
 - Idle containers are destroyed, not paused — no persistent state between sessions
   unless a scenario explicitly requires it (none in MVP do)
-- Base images are rebuilt weekly in CI to pick up OS security patches
+- Base images are intended to be rebuilt weekly in CI after Milestone 7 lands
 - Docker socket access in the session API is the single highest-risk element in the
   architecture — treat it carefully, document it explicitly, never expand its scope
 
@@ -359,8 +361,9 @@ understand what they are building toward.
    maps to CompTIA CertMaster privilege escalation content
 4. `api/` — session management (create/destroy/reconnect/status, ttyd lifecycle)
 5. `proxy/Caddyfile` — route bashcamp.cloud → frontend (file_server), /api/* → API,
-   /t/:id/* → ttyd via regex capture
-6. `frontend/index.html` — login, scenario select, terminal iframe, reset button
+   /t/:port/* → API forward_auth → ttyd via regex capture
+6. `frontend/index.html` — login, scenario select, README rendering, terminal iframe,
+   reconnect, reset button
 7. `deploy/setup.sh` + `docker-compose.yml` — one-command VPS bootstrap
 
 Build and test each layer before moving to the next.
