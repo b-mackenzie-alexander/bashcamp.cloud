@@ -76,7 +76,47 @@ remapping (`userns-remap`) will provide additional defense-in-depth.
 - HIGH and CRITICAL CVE findings fail the CI build — no merge until resolved
 - API dependencies are audited for known CVEs in the security workflow
 
+### Frontend content and supply chain
+
+- Scenario metadata is rendered with DOM APIs and `textContent`, not interpolated
+  HTML, so scenario titles and descriptions cannot inject markup into the page
+- Scenario README Markdown is rendered with `marked` and sanitized with DOMPurify
+  before insertion into the document
+- Browser-side third-party libraries required by the no-build frontend are vendored
+  under `frontend/vendor/` instead of loaded from a runtime CDN
+- Frontend regression tests assert that CDN loading is absent and scenario content
+  rendering remains sanitized
+
 ---
+
+## 2026-05-02 remediation review
+
+The Milestone 5 security review identified four issues and all were remediated
+on branch `fix/remediate-review-findings` before merging to `develop`.
+
+| Finding | Remediation |
+|---|---|
+| Scenario metadata and README Markdown could inject frontend HTML | Scenario cards now use DOM construction and `textContent`; README Markdown is sanitized with DOMPurify |
+| `marked` was loaded from an unpinned CDN without SRI | `marked@18.0.3` and `dompurify@3.4.2` are vendored locally under `frontend/vendor/` |
+| Required runtime config failed late | `api/lib/config.js` now fails fast when `JWT_SECRET` or `SCENARIOS_HOST_PATH` is missing or blank |
+| `dockerode` pulled a vulnerable `uuid` transitive dependency | `dockerode` was updated to `5.0.0`; `npm audit` and OSV report no dependency issues |
+
+Validation performed:
+- `npm test`: 12 tests passing
+- `node --check`: changed API files pass syntax checks
+- `npm audit --audit-level=moderate`: no vulnerabilities
+- `osv-scanner scan source -r .`: no issues found
+- `gitleaks detect --source . --no-banner --redact`: no leaks found
+- `semgrep scan --config auto .`: original CDN/SRI, raw HTML injection, and log
+  format findings closed; remaining warnings are pre-existing reviewed residuals
+- `trivy fs --skip-dirs api/node_modules --scanners vuln,secret,misconfig
+  --severity HIGH,CRITICAL --exit-code 0 .`: no package vulnerabilities or
+  secrets; root-user warnings on lab base Dockerfiles remain an accepted product
+  tradeoff for real Linux/systemd lab behavior
+- `caddy validate --config proxy/Caddyfile`: valid configuration
+
+Security scan artifact:
+`/tmp/codex-security-scans/bashcamp_project/0aa34d2_20260502T123236/report.md`
 
 ## What we scan and when
 
