@@ -413,19 +413,22 @@ Caddy handles everything after DNS propagates. No additional configuration.
 
 **docker-compose.yml (production):**
 ```yaml
-version: '3.9'
 services:
   api:
-    build: ./api
+    build:
+      context: ..
+      dockerfile: api/Dockerfile
     restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock  # API controls Docker
-      - ./scenarios:/scenarios:ro
-      - ./config/users.json:/config/users.json:ro
+      - ../scenarios:/scenarios:ro
+      - ../config/users.json:/config/users.json:ro
     ports:
       - "127.0.0.1:3000:3000"   # localhost only — Caddy proxies externally
     environment:
       - JWT_SECRET=${JWT_SECRET}
+      - USERS_FILE=/config/users.json
+      - SCENARIOS_PATH=/scenarios
       - SESSION_TIMEOUT_MINUTES=30
       - RECONNECT_WINDOW_MINUTES=15
       - SCENARIOS_HOST_PATH=/opt/bashcamp/scenarios  # absolute path on the host, not inside this container
@@ -436,9 +439,14 @@ The frontend is served directly by Caddy's built-in `file_server` from
 one port mapping. If serving requirements grow beyond what Caddy's file server
 handles (unlikely for MVP), nginx can be added back without architectural change.
 
-Note: Caddy and user session containers run directly on the host (not in compose)
-because Caddy needs ports 80/443 and the session API needs Docker socket access
-with host-level port binding for ttyd.
+Note: Caddy and user session containers run directly on the host (not in compose).
+Caddy owns ports 80/443 as a systemd service. The API runs in Compose with the
+host Docker socket mounted and starts ttyd processes from inside the API container;
+those ttyd processes bind host ports 9000-9099 and are reachable only through Caddy.
+
+Milestone 6 deployment artifacts live in `deploy/`. They are runbook-first: the
+repository provides an idempotent setup script and Compose file, but live VPS,
+DNS, and firewall changes require explicit operator approval.
 
 ---
 

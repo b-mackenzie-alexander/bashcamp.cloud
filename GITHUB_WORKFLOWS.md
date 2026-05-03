@@ -102,6 +102,8 @@ Steps:
 Steps:
   - docker build docker/base-ubuntu/ --tag bashcamp/ubuntu-22.04-base
   - docker build docker/base-rocky/ --tag bashcamp/rocky-9-base
+  - docker build -f api/Dockerfile --tag bashcamp-api:test .
+  - docker compose -f deploy/docker-compose.yml --env-file deploy/.env.example config
   - Fail on any build error or warning
   Note: images are built but not pushed in this workflow — push happens
   on merge to main via the weekly workflow or a future deploy workflow
