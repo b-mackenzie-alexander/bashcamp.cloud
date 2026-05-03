@@ -174,7 +174,7 @@ budget and makes the scenario non-deterministic (network conditions, mirror
 availability). All packages must be pre-installed in the base image. If a scenario
 needs a tool that the base image lacks, the answer is a plugin — a Dockerfile
 extending the base image — not a runtime install. Local validation should catch
-apt/dnf usage now; the Milestone 7 CI shellcheck gate will block it automatically.
+apt/dnf usage now; the Milestone 8 CI shellcheck gate will block it automatically.
 
 Scenario personas (`kgarcia`, `jdeng`, etc.) are **not** pre-created in the base
 image. They are scenario-specific characters created by `provision.sh`. The base
@@ -212,7 +212,7 @@ logger "sudo: pam_unix(sudo:auth): authentication failure"
   API-backed terminal cookie validation
 - Idle containers are destroyed, not paused — no persistent state between sessions
   unless a scenario explicitly requires it (none in MVP do)
-- Base images are intended to be rebuilt weekly in CI after Milestone 7 lands
+- Base images are intended to be rebuilt weekly in CI after Milestone 8 lands
 - Docker socket access in the session API is the single highest-risk element in the
   architecture — treat it carefully, document it explicitly, never expand its scope
 

@@ -238,7 +238,7 @@ pre-commit install
 pre-commit install --hook-type pre-push
 ```
 
-A `.pre-commit-config.yaml` can be added with the Milestone 7 workflow
+A `.pre-commit-config.yaml` can be added with the Milestone 8 workflow
 implementation. The API language is now Node.js, so hook commands should use
 Node.js for `scripts/validate-meta.js` and shellcheck for scenario scripts.
 

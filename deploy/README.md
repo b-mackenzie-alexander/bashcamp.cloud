@@ -1,8 +1,8 @@
 # Bashcamp Deployment Runbook
 
-Milestone 6 adds deployment artifacts only. **No live deployment** should happen
-until the branch is reviewed and the operator explicitly approves running the
-commands on the VPS.
+Milestones 6 and 7 add deployment artifacts plus a lightweight SQLite-backed
+auth/data foundation. **No live deployment** should happen until the branch is
+reviewed and the operator explicitly approves running commands on the VPS.
 
 ## Target
 
@@ -12,6 +12,7 @@ commands on the VPS.
 - DNS: Porkbun `A` record pointing `bashcamp.cloud` to the VPS IPv4 address
 - App directory: `/opt/bashcamp`
 - Frontend web root: `/var/www/bashcamp`
+- SQLite database: `/opt/bashcamp/data/bashcamp.sqlite`
 
 ## Topology
 
@@ -20,6 +21,9 @@ commands on the VPS.
 - Caddy serves `frontend/` from `/var/www/bashcamp`.
 - Caddy proxies `/api/*` to the API and `/t/{port}/` to host-side ttyd ports.
 - Student lab containers attach to the `bashcamp-net` Docker bridge network.
+- The API stores users and session metadata in SQLite at `data/bashcamp.sqlite`.
+- `config/users.json` is a first-run seed/import file, not the long-term active
+  credential database.
 
 ## Operator Prerequisites
 
@@ -39,7 +43,8 @@ commands on the VPS.
    ```
 
 4. Generate `config/users.json` offline with bcrypt password hashes. Do not commit
-   `config/users.json`; it is intentionally gitignored.
+   `config/users.json`; it is intentionally gitignored. On first API startup,
+   Bashcamp imports this file into SQLite if the database has no users yet.
 
    ```json
    {
@@ -61,9 +66,42 @@ sudo APP_DIR=/opt/bashcamp BRANCH=develop ./deploy/setup.sh
 ```
 
 The script is idempotent. It installs Docker, Caddy, Git, curl, and UFW; syncs
-`/opt/bashcamp`; builds base images; creates `bashcamp-net`; installs the frontend
-and Caddyfile; starts the API with Compose; reloads Caddy; and allows only SSH,
-HTTP, and HTTPS through UFW.
+`/opt/bashcamp`; creates `/opt/bashcamp/data`; builds base images; creates
+`bashcamp-net`; installs the frontend and Caddyfile; starts the API with Compose;
+reloads Caddy; and allows only SSH, HTTP, and HTTPS through UFW.
+
+## User Operations
+
+After the API has started once, create additional closed-test users from the API
+container. The generated plaintext password is printed once and is never stored.
+
+```bash
+cd /opt/bashcamp
+docker compose -f deploy/docker-compose.yml --env-file deploy/.env exec api \
+  npm run user:create -- --username student04 --role student
+```
+
+To re-import a bcrypt-hashed JSON file into SQLite:
+
+```bash
+cd /opt/bashcamp
+docker compose -f deploy/docker-compose.yml --env-file deploy/.env exec api \
+  npm run users:import -- --file /config/users.json
+```
+
+Keep registration closed for MVP testing. There is no public signup endpoint.
+
+## Database Backup
+
+Back up the SQLite database before deployment changes or destructive testing:
+
+```bash
+sudo cp /opt/bashcamp/data/bashcamp.sqlite \
+  "/opt/bashcamp/data/bashcamp.sqlite.$(date +%Y%m%d%H%M%S).bak"
+```
+
+The database stores users, bcrypt hashes, and session metadata. It does not store
+plaintext passwords or long-lived terminal secrets.
 
 ## Validation
 
@@ -74,6 +112,7 @@ docker compose -f /opt/bashcamp/deploy/docker-compose.yml --env-file /opt/bashca
 systemctl status caddy --no-pager
 caddy validate --config /etc/caddy/Caddyfile
 curl -I https://bashcamp.cloud
+curl -sS https://bashcamp.cloud/api/health
 curl -sS https://bashcamp.cloud/api/scenarios
 docker network inspect bashcamp-net
 ```
@@ -81,9 +120,12 @@ docker network inspect bashcamp-net
 Expected behavior:
 
 - `https://bashcamp.cloud` serves the frontend.
+- `/api/health` returns `{"status":"ok","database":"ok","users":"ok"}`.
 - `/api/scenarios` returns `401` without a JWT.
 - ttyd ports `9000-9099` are not reachable directly from the internet.
 - Login, scenario start, terminal attach, reset, and reconnect work in the browser.
+- Restarting the API container cleans up stale session metadata and orphaned lab
+  containers instead of preserving terminal access across restart.
 
 ## Rollback
 
@@ -115,5 +157,8 @@ docker compose -f deploy/docker-compose.yml --env-file deploy/.env down
   Post-MVP, evaluate a Docker socket proxy or fixed host Docker group mapping.
 - Lab containers run real Linux with systemd and the minimum capabilities needed
   for `sudo`, `su`, and realistic Linux+ scenarios.
-- `config/users.json` is a deployment secret even though it contains bcrypt hashes.
-  It must stay local to the VPS.
+- `config/users.json` and `data/bashcamp.sqlite` are deployment secrets even
+  though they contain bcrypt hashes rather than plaintext passwords. They must
+  stay local to the VPS.
+- Public signup is intentionally absent for MVP testing because authenticated
+  accounts can create Docker-backed lab containers.

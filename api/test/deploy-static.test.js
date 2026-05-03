@@ -31,11 +31,15 @@ test('production compose runs only the API behind localhost Caddy', () => {
   assert.match(compose, /\/var\/run\/docker\.sock:\/var\/run\/docker\.sock/);
   assert.match(compose, /\.\.\/scenarios:\/scenarios:ro/);
   assert.match(compose, /\.\.\/config\/users\.json:\/config\/users\.json:ro/);
+  assert.match(compose, /\.\.\/data:\/data/);
   assert.match(compose, /USERS_FILE=\/config\/users\.json/);
+  assert.match(compose, /DATABASE_PATH=\/data\/bashcamp\.sqlite/);
   assert.match(compose, /SCENARIOS_PATH=\/scenarios/);
   assert.match(compose, /SCENARIOS_HOST_PATH=\/opt\/bashcamp\/scenarios/);
   assert.match(compose, /JWT_SECRET=\$\{JWT_SECRET\?\S+/);
   assert.match(compose, /restart: unless-stopped/);
+  assert.match(compose, /healthcheck:/);
+  assert.match(compose, /\/api\/health/);
 });
 
 test('deployment env example documents non-secret defaults only', () => {
@@ -59,6 +63,7 @@ test('setup script is idempotent and refuses missing secrets', () => {
   assert.match(setup, /SSH_PORT="\$\{SSH_PORT:-22\}"/);
   assert.match(setup, /JWT_SECRET.*replace-with-strong-random-secret/);
   assert.match(setup, /config\/users\.json/);
+  assert.match(setup, /mkdir -p "\$APP_DIR\/data"/);
   assert.match(setup, /docker network inspect bashcamp-net/);
   assert.match(setup, /docker compose -f deploy\/docker-compose\.yml/);
   assert.match(setup, /caddy validate --config \/etc\/caddy\/Caddyfile/);
@@ -75,6 +80,9 @@ test('deployment runbook covers operator-owned live steps and rollback', () => {
     'Ubuntu 22.04',
     'Porkbun',
     'config/users.json',
+    'data/bashcamp.sqlite',
+    'npm run user:create',
+    'npm run users:import',
     'bcrypt',
     'deploy/.env',
     'bashcamp-net',

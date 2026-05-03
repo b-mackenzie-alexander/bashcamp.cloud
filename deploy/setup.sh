@@ -50,6 +50,7 @@ sync_repository() {
 validate_config() {
   require_file "$APP_DIR/deploy/.env"
   require_file "$APP_DIR/config/users.json"
+  run mkdir -p "$APP_DIR/data"
 
   set -a
   # shellcheck disable=SC1091

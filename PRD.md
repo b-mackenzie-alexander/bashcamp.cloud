@@ -149,7 +149,8 @@ it available to any scenario that declares a dependency on it.
 
 ### Authentication (MVP)
 
-- Static credential list (username + bcrypt hashed password) stored in a config file
+- Closed credential list (username + bcrypt hashed password) imported from
+  `config/users.json` into local SQLite on first startup
 - No self-registration in MVP — instructor creates accounts
 - Session token (JWT) issued on login, required for all API calls
 - Auth tokens expire after 4 hours of inactivity (distinct from the 30-minute
@@ -159,6 +160,9 @@ it available to any scenario that declares a dependency on it.
   the API at session start, stored in an HttpOnly `/t/` cookie, validated by Caddy
   `forward_auth`, and forwarded to ttyd as an upstream Basic Auth header. Terminal
   URLs do not contain credentials.
+- Session metadata is persisted in SQLite so API restarts can reconcile and clean
+  stale lab containers. Terminal reconnect across API restart is not required for
+  MVP testing.
 
 ### Routing and TLS
 
@@ -175,11 +179,11 @@ it available to any scenario that declares a dependency on it.
 Security and quality are enforced structurally, not assumed. This is the development
 standard for all Bashcamp work, not a phase to be added later.
 
-- Milestone 7 CI will validate every scenario's `meta.json` against schema before merge
-- Milestone 7 CI will lint every `provision.sh` with shellcheck before merge
-- Milestone 7 CI will run every `provision.sh` against its declared distro image and confirm exit 0
-- Milestone 7 CI will scan base images with Trivy; HIGH/CRITICAL findings fail the build
-- Milestone 7 weekly workflow will rebuild base images on a schedule to pull OS security patches
+- Milestone 8 CI will validate every scenario's `meta.json` against schema before merge
+- Milestone 8 CI will lint every `provision.sh` with shellcheck before merge
+- Milestone 8 CI will run every `provision.sh` against its declared distro image and confirm exit 0
+- Milestone 8 CI will scan base images with Trivy; HIGH/CRITICAL findings fail the build
+- Milestone 8 weekly workflow will rebuild base images on a schedule to pull OS security patches
 - Docker socket access in the session API is explicitly documented as the
   highest-risk element in the architecture and never expanded in scope without review
 - No secrets in source — JWT secret, credentials, and any future API keys are
