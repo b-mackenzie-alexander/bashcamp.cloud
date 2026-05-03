@@ -34,9 +34,18 @@ install_packages() {
     debian-archive-keyring \
     apt-transport-https \
     docker.io \
-    docker-compose-plugin \
     git \
     ufw
+
+  # Install Docker Compose v2 plugin directly from GitHub releases — the
+  # docker-compose-plugin apt package does not wire up with docker.io on Ubuntu 22.04
+  if ! docker compose version >/dev/null 2>&1; then
+    run mkdir -p /usr/local/lib/docker/cli-plugins
+    run curl -SL \
+      "https://github.com/docker/compose/releases/download/v2.27.1/docker-compose-linux-x86_64" \
+      -o /usr/local/lib/docker/cli-plugins/docker-compose
+    run chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+  fi
 
   # Add Caddy official apt repo if not already present
   if [ ! -f /etc/apt/sources.list.d/caddy-stable.list ]; then
