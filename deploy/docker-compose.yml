@@ -1,0 +1,19 @@
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: api/Dockerfile
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ../scenarios:/scenarios:ro
+      - ../config/users.json:/config/users.json:ro
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      - JWT_SECRET=${JWT_SECRET?JWT_SECRET_is_required}
+      - USERS_FILE=/config/users.json
+      - SCENARIOS_PATH=/scenarios
+      - SCENARIOS_HOST_PATH=/opt/bashcamp/scenarios
+      - SESSION_TIMEOUT_MINUTES=${SESSION_TIMEOUT_MINUTES:-30}
+      - RECONNECT_WINDOW_MINUTES=${RECONNECT_WINDOW_MINUTES:-15}

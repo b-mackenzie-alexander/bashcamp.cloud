@@ -158,6 +158,12 @@ Post-MVP: implement logging via a wrapper or a terminal recording tool (e.g., as
 the architecture. The socket gives root-equivalent access to the host Docker daemon.
 Mitigations:
 - The socket is mounted only into the API container, not any other service
+- The API container is bound to `127.0.0.1:3000`; external traffic reaches it only
+  through host Caddy
+- The API image currently runs as root because it must access the mounted Docker
+  socket and launch Docker/ttyd operations on behalf of authenticated sessions.
+  This does not add meaningful privilege beyond the Docker socket itself, but it
+  is still an accepted high-risk deployment boundary.
 - The API's scope of Docker operations is documented and never expanded without review
 - Post-MVP: consider replacing direct socket access with a Docker socket proxy
   (e.g., Tecnativa/docker-socket-proxy) to limit which API calls are permitted
@@ -175,6 +181,11 @@ corresponding Basic Auth header only to ttyd.
 bcrypt-hashed passwords. No database, no network auth service, no attack surface
 on the auth layer beyond the API endpoint itself. Post-MVP: evaluate moving to a
 proper identity provider if the cohort grows.
+
+**Deployment is runbook-gated.** Milestone 6 adds `deploy/setup.sh`,
+`deploy/docker-compose.yml`, and `deploy/README.md`, but the repository artifacts
+do not by themselves change live infrastructure. Running setup on the VPS, changing
+DNS, or changing firewall state requires explicit operator approval.
 
 ---
 
