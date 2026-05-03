@@ -49,6 +49,9 @@ remapping (`userns-remap`) will provide additional defense-in-depth.
 
 - All student passwords are bcrypt-hashed before storage — never stored in plaintext
 - JWT secrets and all credentials are environment variables, never in source code
+- Runtime credentials are stored in local SQLite after first-run import from the
+  operator-owned `config/users.json` seed file. Both files are gitignored and
+  treated as deployment secrets.
 - Terminal access is gated by per-session HTTP Basic Auth credentials generated
   at session start and never written to disk or logged
 - Terminal credentials are not embedded in URLs. The API stores the terminal
@@ -63,6 +66,8 @@ remapping (`userns-remap`) will provide additional defense-in-depth.
 
 - The platform is not exposed to anonymous internet users — credentials are
   distributed by the instructor
+- Public signup is intentionally absent for MVP testing because authenticated
+  accounts can create Docker-backed lab containers.
 - All API endpoints require a valid JWT in the `Authorization` header
 - Terminal access requires both a valid Caddy-proxied URL (path includes the ttyd
   port) and a valid per-session terminal cookie
@@ -120,7 +125,7 @@ Security scan artifact:
 
 ## What we scan and when
 
-These are the intended automated gates for Milestone 7. Until workflow files are
+These are the intended automated gates for Milestone 8. Until workflow files are
 implemented, run the corresponding local checks before opening or merging PRs.
 
 | What | Tool | When |
@@ -177,10 +182,16 @@ URLs such as `/t/9001/`. Caddy uses `forward_auth` to ask the API whether the
 student's HttpOnly terminal cookie is valid for that port, then forwards the
 corresponding Basic Auth header only to ttyd.
 
-**Static credentials for MVP.** The credential store is a local JSON file with
-bcrypt-hashed passwords. No database, no network auth service, no attack surface
-on the auth layer beyond the API endpoint itself. Post-MVP: evaluate moving to a
-proper identity provider if the cohort grows.
+**Closed credentials for MVP.** The operator seeds users from a local JSON file
+with bcrypt-hashed passwords; the API imports that seed into local SQLite and uses
+SQLite as the runtime credential store. There is no public signup endpoint.
+Post-MVP: evaluate invite codes, admin UI, or a proper identity provider if the
+cohort grows.
+
+**Session metadata persistence.** SQLite stores session lifecycle metadata for
+cleanup and debugging. It does not store long-lived plaintext terminal secrets.
+If the API restarts, prior open sessions are marked destroyed and their containers
+are removed instead of attempting to reuse stale ttyd credentials.
 
 **Deployment is runbook-gated.** Milestone 6 adds `deploy/setup.sh`,
 `deploy/docker-compose.yml`, and `deploy/README.md`, but the repository artifacts
@@ -191,7 +202,7 @@ DNS, or changing firewall state requires explicit operator approval.
 
 ## Security posture: DevSecOps from day one
 
-Security is a baseline, not a phase. The Milestone 7 CI/CD pipeline is specified
+Security is a baseline, not a phase. The Milestone 8 CI/CD pipeline is specified
 to enforce security gates on every contribution. Until those workflow files land,
 reviewers should require the same checks manually. The goal is to make insecure
 contributions structurally impossible, not to rely on reviewer attention.

@@ -1,6 +1,8 @@
 'use strict';
 
 const sessions = new Map();
+const { db } = require('./appState');
+const sessionRepository = require('./sessionRepository');
 
 function create(fields) {
   for (const [, s] of sessions) {
@@ -9,6 +11,8 @@ function create(fields) {
     }
   }
   sessions.set(fields.sessionId, { ...fields });
+  sessionRepository.upsertSession(db, fields);
+  sessionRepository.recordEvent(db, fields.sessionId, 'created', { scenarioId: fields.scenarioId, port: fields.port });
 }
 
 function get(sessionId) {
@@ -24,7 +28,11 @@ function getByUser(userId) {
 
 function update(sessionId, fields) {
   const session = sessions.get(sessionId);
-  if (session) Object.assign(session, fields);
+  if (session) {
+    Object.assign(session, fields);
+    sessionRepository.updateSession(db, sessionId, fields);
+    if (fields.status) sessionRepository.recordEvent(db, sessionId, fields.status, { port: session.port });
+  }
 }
 
 function all() {
@@ -32,6 +40,7 @@ function all() {
 }
 
 function remove(sessionId) {
+  sessionRepository.removeSession(db, sessionId);
   sessions.delete(sessionId);
 }
 

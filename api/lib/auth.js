@@ -1,11 +1,9 @@
 'use strict';
 
-const fs = require('fs');
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
 const config = require('./config');
-
-const { users } = JSON.parse(fs.readFileSync(config.usersFile, 'utf8'));
+const { db } = require('./appState');
+const users = require('./userRepository');
 
 function jwtMiddleware(req, res, next) {
   const header = req.headers.authorization ?? '';
@@ -21,10 +19,7 @@ function jwtMiddleware(req, res, next) {
 }
 
 async function validateUser(username, password) {
-  const user = users.find(u => u.username === username);
-  if (!user) return null;
-  const ok = await bcrypt.compare(password, user.password_hash);
-  return ok ? { userId: username } : null;
+  return users.validateUser(db, username, password);
 }
 
 module.exports = { jwtMiddleware, validateUser };

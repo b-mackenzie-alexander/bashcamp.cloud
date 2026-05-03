@@ -126,7 +126,7 @@ scenarios/<scenario-id>/
 
 ---
 
-## Planned CI gates — what will block your PR after Milestone 7
+## Planned CI gates — what will block your PR after Milestone 8
 
 Until workflow files are implemented, run the equivalent local checks before
 opening or merging a PR.

@@ -87,7 +87,7 @@ usermod -aG sudo kgarcia
 echo "kgarcia ALL=(ALL:ALL) ALL BADSYNTAX" >> /etc/sudoers
 ```
 
-**Rules — CI will enforce these after Milestone 7. Until then, run these checks locally:**
+**Rules — CI will enforce these after Milestone 8. Until then, run these checks locally:**
 
 1. Must start with `#!/bin/bash` and `set -euo pipefail`
 2. **No `apt`, `apt-get`, `dnf`, or `yum`.** Package installation at session start

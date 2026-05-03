@@ -8,12 +8,20 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ../scenarios:/scenarios:ro
       - ../config/users.json:/config/users.json:ro
+      - ../data:/data
     ports:
       - "127.0.0.1:3000:3000"
     environment:
       - JWT_SECRET=${JWT_SECRET?JWT_SECRET_is_required}
       - USERS_FILE=/config/users.json
+      - DATABASE_PATH=/data/bashcamp.sqlite
       - SCENARIOS_PATH=/scenarios
       - SCENARIOS_HOST_PATH=/opt/bashcamp/scenarios
       - SESSION_TIMEOUT_MINUTES=${SESSION_TIMEOUT_MINUTES:-30}
       - RECONNECT_WINDOW_MINUTES=${RECONNECT_WINDOW_MINUTES:-15}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

@@ -12,6 +12,8 @@ CURRENT_WORK.md
 !.env.example
 # Credential store — never commit, generate offline
 config/users.json
+# Runtime SQLite data — never commit live database files
+data/
 
 # ── OS and editor artifacts ───────────────────────────────────────────────────
 .DS_Store

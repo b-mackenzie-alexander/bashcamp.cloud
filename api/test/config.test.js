@@ -36,9 +36,32 @@ test('config fails fast when SCENARIOS_HOST_PATH is missing', () => {
 
 test('config exports validated required settings', () => {
   const scenariosHostPath = path.join(repoRoot, 'scenarios');
+  const databasePath = path.join(repoRoot, 'data/test.sqlite');
   const result = spawnSync(
     process.execPath,
-    ['-e', `const config = require(${JSON.stringify(configModule)}); process.stdout.write(config.jwtSecret + '\\n' + config.scenariosHostPath);`],
+    ['-e', `const config = require(${JSON.stringify(configModule)}); process.stdout.write(config.jwtSecret + '\\n' + config.scenariosHostPath + '\\n' + config.databasePath);`],
+    {
+      cwd: repoRoot,
+      env: {
+        PATH: process.env.PATH,
+        JWT_SECRET: 'test-secret',
+        SCENARIOS_HOST_PATH: scenariosHostPath,
+        DATABASE_PATH: databasePath,
+        USERS_FILE: require.resolve('./fixtures/users.json'),
+      },
+      encoding: 'utf8',
+    }
+  );
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, `test-secret\n${scenariosHostPath}\n${databasePath}`);
+});
+
+test('config defaults DATABASE_PATH to the local data directory', () => {
+  const scenariosHostPath = path.join(repoRoot, 'scenarios');
+  const result = spawnSync(
+    process.execPath,
+    ['-e', `const config = require(${JSON.stringify(configModule)}); process.stdout.write(config.databasePath);`],
     {
       cwd: repoRoot,
       env: {
@@ -52,5 +75,5 @@ test('config exports validated required settings', () => {
   );
 
   assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.stdout, `test-secret\n${scenariosHostPath}`);
+  assert.equal(result.stdout, path.join(repoRoot, 'data/bashcamp.sqlite'));
 });

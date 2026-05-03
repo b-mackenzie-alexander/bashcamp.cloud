@@ -104,7 +104,7 @@ and the domain A record pointing at the VPS IP.
 validation. Idle timeout enforcement.
 
 **Responsibilities:**
-- Authenticate users against static credential store
+- Authenticate users against the local SQLite credential store
 - Issue session tokens (JWT or signed random token)
 - Spawn Docker container for a scenario on session create
 - Start a ttyd process attached to that container, on an assigned port
@@ -116,6 +116,7 @@ validation. Idle timeout enforcement.
 ```
 POST /api/auth/login              { username, password } → { token }
 POST /api/auth/logout             header: Authorization  → 200
+GET  /api/health                  unauthenticated        → { status, database, users }
 GET  /api/session                 header: Authorization  → { status, scenario_id, terminal_url, disconnected_at, expires_at }
 POST /api/session/start           { scenario_id }        → { session_id, terminal_url } + terminal cookie
 POST /api/session/reconnect       header: Authorization  → { terminal_url } + terminal cookie | 410 Gone
@@ -171,7 +172,20 @@ are ephemeral; no state survives beyond the reconnect window after disconnect.
 }
 ```
 Hashed with bcrypt. Instructor generates credentials offline and distributes
-them out of band. No self-registration in MVP.
+them out of band. `config/users.json` is imported into the local SQLite database
+on first API startup if no users exist yet. After import, SQLite is the runtime
+credential store. No self-registration in MVP.
+
+**SQLite data foundation (MVP testing):**
+- Database path: `DATABASE_PATH`, defaulting to `data/bashcamp.sqlite` locally and
+  `/data/bashcamp.sqlite` in production Compose.
+- Tables: `users`, `sessions`, and `session_events`.
+- Session rows store lifecycle metadata only. Terminal secrets and ttyd process
+  IDs remain process-local and are not written to disk.
+- On API startup, stale `active` or `disconnected` session rows from a prior
+  process are reconciled by destroying their containers if present and marking
+  the rows `destroyed`. API restarts therefore clean up safely, but do not yet
+  provide terminal reconnect across process restarts.
 
 ---
 
@@ -270,18 +284,18 @@ while preserving ttyd's native Basic Auth gate.
 
 `--token` does not exist in ttyd. Do not use it.
 
-**Port allocation:** API maintains an in-memory map of session to port.
-Ports 9000-9099 reserved for ttyd instances (supports 100 concurrent sessions,
-well above our needs).
+**Port allocation:** API maintains an in-memory pool for live ttyd processes.
+Ports 9000-9099 are reserved for ttyd instances (supports 100 concurrent sessions,
+well above our needs). Session metadata is persisted in SQLite for audit and
+cleanup, but live terminal routing still depends on process-local ttyd state.
 
-**Known limitation — port map is not persisted.** If the API process restarts,
-the in-memory map is lost. Active ttyd processes become orphaned (they continue
-running on their ports but the API no longer knows about them) and active student
-sessions lose their terminal URL. The containers themselves survive an API restart;
-only the routing metadata is gone. For a 10-student MVP cohort this is acceptable —
-a rare API restart is a known inconvenience, not a data-loss event. Students
-re-start their sessions. Post-MVP: persist session state to a lightweight store
-(SQLite or Redis) so API restarts are transparent.
+**Known limitation — restart reconnect is not implemented.** If the API process
+restarts, active terminal cookies and ttyd process tracking are lost. On startup,
+the API marks prior open sessions destroyed and force-removes their containers to
+avoid stale state blocking students. For MVP testing this is safer than attempting
+to preserve terminal access with stale secrets. Post-MVP: rebuild terminal access
+after restart by rotating terminal secrets and respawning ttyd for still-valid
+containers, or move to a richer session coordinator.
 
 ---
 
@@ -423,11 +437,13 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock  # API controls Docker
       - ../scenarios:/scenarios:ro
       - ../config/users.json:/config/users.json:ro
+      - ../data:/data
     ports:
       - "127.0.0.1:3000:3000"   # localhost only — Caddy proxies externally
     environment:
       - JWT_SECRET=${JWT_SECRET}
       - USERS_FILE=/config/users.json
+      - DATABASE_PATH=/data/bashcamp.sqlite
       - SCENARIOS_PATH=/scenarios
       - SESSION_TIMEOUT_MINUTES=30
       - RECONNECT_WINDOW_MINUTES=15
