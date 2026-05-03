@@ -29,11 +29,24 @@ install_packages() {
   run apt-get update
   run apt-get install -y --no-install-recommends \
     ca-certificates \
-    caddy \
     curl \
+    debian-keyring \
+    debian-archive-keyring \
+    apt-transport-https \
     docker.io \
     git \
     ufw
+
+  # Add Caddy official apt repo if not already present
+  if [ ! -f /etc/apt/sources.list.d/caddy-stable.list ]; then
+    curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
+      | run gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+    curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
+      | run tee /etc/apt/sources.list.d/caddy-stable.list
+    run apt-get update
+  fi
+
+  run apt-get install -y --no-install-recommends caddy
 }
 
 sync_repository() {
