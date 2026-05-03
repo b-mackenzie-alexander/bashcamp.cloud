@@ -126,7 +126,10 @@ scenarios/<scenario-id>/
 
 ---
 
-## CI gates — what will block your PR
+## Planned CI gates — what will block your PR after Milestone 8
+
+Until workflow files are implemented, run the equivalent local checks before
+opening or merging a PR.
 
 - Branch name does not match `^(feat|fix|doc|hotfix)/.+`
 - `meta.json` fails schema validation
@@ -146,7 +149,9 @@ scenarios/<scenario-id>/
 See ARCHITECTURE.md (Caddy section) for the correct pattern.
 
 **ttyd auth** uses `--credential session_id:secret` (HTTP Basic Auth).
-There is no `--token` flag. Do not use it.
+There is no `--token` flag. Do not use it. Do not put terminal credentials in
+URLs. The frontend receives `/t/<port>/`; Caddy uses `forward_auth` to validate
+the HttpOnly terminal cookie and inject ttyd's Basic Auth header upstream.
 
 **systemd as PID 1** in containers requires specific docker run flags.
 Never start a user container without the flags documented in ARCHITECTURE.md.

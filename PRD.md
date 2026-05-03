@@ -1,7 +1,7 @@
 # Bashcamp — Product Requirements Document
 
 **Version:** 0.1 (MVP)
-**Status:** Pre-build
+**Status:** In build — Milestones 1-5 merged to develop
 **Target:** bashcamp.cloud
 **Timeline:** Friday–Sunday build, Monday delivery to cohort
 
@@ -63,9 +63,8 @@ want to try again.
 **As a student,** if I close my browser and return within 15 minutes, I can reconnect
 to my existing session and pick up where I left off.
 
-**As a student,** my session automatically cleans up after 45 minutes of total
-inactivity (30 minutes idle + 15-minute reconnect window) so I don't have to think
-about resource management.
+**As a student,** my disconnected session automatically cleans up after the
+reconnect window closes so I don't have to think about resource management.
 
 **As an instructor,** I can give 10 students login credentials and have them all
 working independently without any per-student infrastructure setup.
@@ -117,17 +116,19 @@ it available to any scenario that declares a dependency on it.
 - Session creation must complete (container running + terminal accessible) within
   30 seconds of user request
 - Each user gets exactly one active session at a time
-- Sessions idle-timeout after 30 minutes with no terminal input — container enters
-  a "disconnected" state but is not immediately destroyed
+- When the browser terminal disconnects, the container enters a "disconnected"
+  state but is not immediately destroyed
 - **Reconnect window:** 15 minutes from disconnect. A user who returns within this
   window resumes the same container with all in-progress state intact
-- **Maximum resource hold:** 45 minutes from last terminal input. After that the
-  container is destroyed regardless of reconnect attempts
+- **MVP limitation:** Exact terminal-input idle detection is not implemented yet.
+  The current cleanup path destroys disconnected sessions after the reconnect
+  window. Full idle tracking requires a terminal activity tracker or WebSocket-aware
+  proxy layer.
 - On timeout or manual reset: container is destroyed and reprovisioned from scratch
 - No session state persists between resets — each reset is a clean slate
 - **Post-MVP — session store:** Persisting container snapshots to a database so users
   can resume work across days is architecturally feasible but explicitly out of scope
-  for MVP. Containers are ephemeral; no state survives beyond 45 minutes.
+  for MVP. Containers are ephemeral; no state survives beyond session cleanup.
 
 ### Terminal environment
 
@@ -148,21 +149,26 @@ it available to any scenario that declares a dependency on it.
 
 ### Authentication (MVP)
 
-- Static credential list (username + bcrypt hashed password) stored in a config file
+- Closed credential list (username + bcrypt hashed password) imported from
+  `config/users.json` into local SQLite on first startup
 - No self-registration in MVP — instructor creates accounts
 - Session token (JWT) issued on login, required for all API calls
 - Auth tokens expire after 4 hours of inactivity (distinct from the 30-minute
   container idle timeout — a user can hold an auth token without an active container)
 - Terminal access (ttyd) is gated by HTTP Basic Auth: a per-session randomly
   generated credential (`session_id:terminal_secret`). This credential is issued by
-  the API at session start and valid only for the lifetime of that session. It is
-  never written to disk or logged.
+  the API at session start, stored in an HttpOnly `/t/` cookie, validated by Caddy
+  `forward_auth`, and forwarded to ttyd as an upstream Basic Auth header. Terminal
+  URLs do not contain credentials.
+- Session metadata is persisted in SQLite so API restarts can reconcile and clean
+  stale lab containers. Terminal reconnect across API restart is not required for
+  MVP testing.
 
 ### Routing and TLS
 
 - All traffic over HTTPS — Caddy handles certificate provisioning automatically
 - Terminal sessions proxied through Caddy — ttyd ports never directly exposed
-- Single domain: `bashcamp.cloud` for frontend and API, `/session/:id` for terminals
+- Single domain: `bashcamp.cloud` for frontend and API, `/t/:port/` for terminals
 
 ---
 
@@ -173,11 +179,11 @@ it available to any scenario that declares a dependency on it.
 Security and quality are enforced structurally, not assumed. This is the development
 standard for all Bashcamp work, not a phase to be added later.
 
-- CI validates every scenario's `meta.json` against schema before merge
-- CI lints every `provision.sh` with shellcheck before merge
-- CI runs every `provision.sh` against both base images and confirms exit 0
-- Trivy scans base images for CVEs on every build; HIGH/CRITICAL findings fail the build
-- Base images rebuild weekly on a schedule to pull OS security patches
+- Milestone 8 CI will validate every scenario's `meta.json` against schema before merge
+- Milestone 8 CI will lint every `provision.sh` with shellcheck before merge
+- Milestone 8 CI will run every `provision.sh` against its declared distro image and confirm exit 0
+- Milestone 8 CI will scan base images with Trivy; HIGH/CRITICAL findings fail the build
+- Milestone 8 weekly workflow will rebuild base images on a schedule to pull OS security patches
 - Docker socket access in the session API is explicitly documented as the
   highest-risk element in the architecture and never expanded in scope without review
 - No secrets in source — JWT secret, credentials, and any future API keys are
@@ -267,8 +273,9 @@ the platform is the vehicle. Contribution model:
 - Fill in `provision.sh`, `meta.json`, `README.md`
 - Open a PR
 
-CI validates `meta.json` schema and lints `provision.sh`. No platform knowledge
-required to contribute a scenario.
+The planned CI validates `meta.json` schema and lints `provision.sh`. Until those
+workflow files land, contributors should run the documented local validation commands
+before opening a PR. No platform knowledge is required to contribute a scenario.
 
 **Distro pairing:** Contributors are encouraged to submit sister scenarios for the
 other distro family, linked via `distro_pair` in `meta.json`. Same broken condition,

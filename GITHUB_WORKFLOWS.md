@@ -18,7 +18,9 @@ feat/*, fix/*, doc/*, hotfix/* ──► develop ──► main
 - Feature branches merge to `develop`
 - `develop` merges to `main` (scheduled releases or milestone completions)
 - `hotfix/*` branches may merge directly to `main` and back-merge to `develop`
-- Direct pushes to `develop` or `main` are warned on (non-blocking for MVP)
+- Direct pushes to `develop` or `main` are blocked by branch protection except
+  administrator bypasses
+- Repository merge policy is squash-only; merge commits and rebase merges are disabled
 - All PR workflows use `concurrency: cancel-in-progress: true`
 - All workflows declare `permissions: contents: read`
 
@@ -45,8 +47,8 @@ Steps:
 ```
 Runs: on push events only
 Steps:
-  - Check if commit message matches PR merge patterns
-    (starts with "Merge pull request #" or ends with "(#NNN)")
+  - Check if commit message matches accepted merge patterns
+    (squash commit from GitHub PR merge or administrator bypass)
   - If not a merge commit: emit ::warning:: (non-blocking in MVP)
   - Warning message: who pushed, to which branch, commit SHA
 ```
@@ -100,6 +102,8 @@ Steps:
 Steps:
   - docker build docker/base-ubuntu/ --tag bashcamp/ubuntu-22.04-base
   - docker build docker/base-rocky/ --tag bashcamp/rocky-9-base
+  - docker build -f api/Dockerfile --tag bashcamp-api:test .
+  - docker compose -f deploy/docker-compose.yml --env-file deploy/.env.example config
   - Fail on any build error or warning
   Note: images are built but not pushed in this workflow — push happens
   on merge to main via the weekly workflow or a future deploy workflow
@@ -234,21 +238,51 @@ pre-commit install
 pre-commit install --hook-type pre-push
 ```
 
-A `.pre-commit-config.yaml` will be provided when the API language is decided
-(affects which language runtime is in the hook environment).
+A `.pre-commit-config.yaml` can be added with the Milestone 8 workflow
+implementation. The API language is now Node.js, so hook commands should use
+Node.js for `scripts/validate-meta.js` and shellcheck for scenario scripts.
 
 ---
 
 ## Environment variables required by workflows
 
+**Repository secrets** (Settings → Secrets and variables → Actions):
 ```
-Secrets (set in GitHub repository settings):
-  JWT_SECRET          — used by API in test runs (if integration tests are added)
-  GHCR_TOKEN          — GitHub token for pushing to Container Registry (weekly.yml)
+JWT_SECRET    — used by API in test/integration runs once those are written
+```
 
-No other secrets required for MVP workflows. TruffleHog uses GITHUB_TOKEN
-(automatically available) for its GitHub integration.
+**Automatic tokens — no setup required:**
 ```
+GITHUB_TOKEN  — injected by Actions into every workflow run automatically.
+                Used by TruffleHog, Trivy action, gh CLI calls, and GHCR pushes.
+                No separate PAT or GHCR_TOKEN needed.
+```
+
+**GHCR login in weekly.yml** (push base images to GitHub Container Registry):
+```yaml
+- name: Log in to GHCR
+  uses: docker/login-action@v3
+  with:
+    registry: ghcr.io
+    username: ${{ github.actor }}
+    password: ${{ secrets.GITHUB_TOKEN }}
+```
+`GITHUB_TOKEN` covers container pushes within the same user account when the
+workflow job declares `packages: write`.
+
+**Standard permissions block — apply to every workflow file:**
+```yaml
+permissions:
+  contents: read          # default for all jobs
+
+# Per-job overrides only when a job needs more:
+# packages: write         — weekly.yml GHCR push job
+# issues: write           — weekly.yml open-CVE-issue job
+# pull-requests: read     — ci.yml jobs reading PR metadata
+```
+
+Least-privilege: start with `contents: read` at the workflow level and elevate
+per-job only. This limits blast radius if a workflow is compromised.
 
 ---
 

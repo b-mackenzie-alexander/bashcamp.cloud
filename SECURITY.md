@@ -49,8 +49,15 @@ remapping (`userns-remap`) will provide additional defense-in-depth.
 
 - All student passwords are bcrypt-hashed before storage — never stored in plaintext
 - JWT secrets and all credentials are environment variables, never in source code
+- Runtime credentials are stored in local SQLite after first-run import from the
+  operator-owned `config/users.json` seed file. Both files are gitignored and
+  treated as deployment secrets.
 - Terminal access is gated by per-session HTTP Basic Auth credentials generated
   at session start and never written to disk or logged
+- Terminal credentials are not embedded in URLs. The API stores the terminal
+  credential in an HttpOnly cookie scoped to `/t/`, and Caddy validates that cookie
+  with `/api/session/terminal-auth` before injecting the upstream ttyd Basic Auth
+  header.
 - Terminal ports (9000-9099) are never directly exposed — all traffic routes
   through Caddy over HTTPS
 - TruffleHog scans every PR and weekly for secrets committed to the repository
@@ -59,9 +66,11 @@ remapping (`userns-remap`) will provide additional defense-in-depth.
 
 - The platform is not exposed to anonymous internet users — credentials are
   distributed by the instructor
+- Public signup is intentionally absent for MVP testing because authenticated
+  accounts can create Docker-backed lab containers.
 - All API endpoints require a valid JWT in the `Authorization` header
-- Terminal access requires both a valid Caddy-proxied URL (path includes session ID)
-  and the per-session Basic Auth credential
+- Terminal access requires both a valid Caddy-proxied URL (path includes the ttyd
+  port) and a valid per-session terminal cookie
 - Caddy enforces TLS on all connections — no plaintext HTTP accepted
 
 ### Dependency vulnerabilities
@@ -72,9 +81,52 @@ remapping (`userns-remap`) will provide additional defense-in-depth.
 - HIGH and CRITICAL CVE findings fail the CI build — no merge until resolved
 - API dependencies are audited for known CVEs in the security workflow
 
+### Frontend content and supply chain
+
+- Scenario metadata is rendered with DOM APIs and `textContent`, not interpolated
+  HTML, so scenario titles and descriptions cannot inject markup into the page
+- Scenario README Markdown is rendered with `marked` and sanitized with DOMPurify
+  before insertion into the document
+- Browser-side third-party libraries required by the no-build frontend are vendored
+  under `frontend/vendor/` instead of loaded from a runtime CDN
+- Frontend regression tests assert that CDN loading is absent and scenario content
+  rendering remains sanitized
+
 ---
 
+## 2026-05-02 remediation review
+
+The Milestone 5 security review identified four issues and all were remediated
+on branch `fix/remediate-review-findings` before merging to `develop`.
+
+| Finding | Remediation |
+|---|---|
+| Scenario metadata and README Markdown could inject frontend HTML | Scenario cards now use DOM construction and `textContent`; README Markdown is sanitized with DOMPurify |
+| `marked` was loaded from an unpinned CDN without SRI | `marked@18.0.3` and `dompurify@3.4.2` are vendored locally under `frontend/vendor/` |
+| Required runtime config failed late | `api/lib/config.js` now fails fast when `JWT_SECRET` or `SCENARIOS_HOST_PATH` is missing or blank |
+| `dockerode` pulled a vulnerable `uuid` transitive dependency | `dockerode` was updated to `5.0.0`; `npm audit` and OSV report no dependency issues |
+
+Validation performed:
+- `npm test`: 12 tests passing
+- `node --check`: changed API files pass syntax checks
+- `npm audit --audit-level=moderate`: no vulnerabilities
+- `osv-scanner scan source -r .`: no issues found
+- `gitleaks detect --source . --no-banner --redact`: no leaks found
+- `semgrep scan --config auto .`: original CDN/SRI, raw HTML injection, and log
+  format findings closed; remaining warnings are pre-existing reviewed residuals
+- `trivy fs --skip-dirs api/node_modules --scanners vuln,secret,misconfig
+  --severity HIGH,CRITICAL --exit-code 0 .`: no package vulnerabilities or
+  secrets; root-user warnings on lab base Dockerfiles remain an accepted product
+  tradeoff for real Linux/systemd lab behavior
+- `caddy validate --config proxy/Caddyfile`: valid configuration
+
+Security scan artifact:
+`/tmp/codex-security-scans/bashcamp_project/0aa34d2_20260502T123236/report.md`
+
 ## What we scan and when
+
+These are the intended automated gates for Milestone 8. Until workflow files are
+implemented, run the corresponding local checks before opening or merging PRs.
 
 | What | Tool | When |
 |---|---|---|
@@ -111,6 +163,12 @@ Post-MVP: implement logging via a wrapper or a terminal recording tool (e.g., as
 the architecture. The socket gives root-equivalent access to the host Docker daemon.
 Mitigations:
 - The socket is mounted only into the API container, not any other service
+- The API container is bound to `127.0.0.1:3000`; external traffic reaches it only
+  through host Caddy
+- The API image currently runs as root because it must access the mounted Docker
+  socket and launch Docker/ttyd operations on behalf of authenticated sessions.
+  This does not add meaningful privilege beyond the Docker socket itself, but it
+  is still an accepted high-risk deployment boundary.
 - The API's scope of Docker operations is documented and never expanded without review
 - Post-MVP: consider replacing direct socket access with a Docker socket proxy
   (e.g., Tecnativa/docker-socket-proxy) to limit which API calls are permitted
@@ -119,18 +177,34 @@ Mitigations:
 (9000-9099). The VPS firewall (UFW) blocks all external access to these ports.
 Students access terminals exclusively through Caddy's HTTPS proxy.
 
-**Static credentials for MVP.** The credential store is a local JSON file with
-bcrypt-hashed passwords. No database, no network auth service, no attack surface
-on the auth layer beyond the API endpoint itself. Post-MVP: evaluate moving to a
-proper identity provider if the cohort grows.
+**Terminal credentials stay out of URLs.** The frontend receives clean terminal
+URLs such as `/t/9001/`. Caddy uses `forward_auth` to ask the API whether the
+student's HttpOnly terminal cookie is valid for that port, then forwards the
+corresponding Basic Auth header only to ttyd.
+
+**Closed credentials for MVP.** The operator seeds users from a local JSON file
+with bcrypt-hashed passwords; the API imports that seed into local SQLite and uses
+SQLite as the runtime credential store. There is no public signup endpoint.
+Post-MVP: evaluate invite codes, admin UI, or a proper identity provider if the
+cohort grows.
+
+**Session metadata persistence.** SQLite stores session lifecycle metadata for
+cleanup and debugging. It does not store long-lived plaintext terminal secrets.
+If the API restarts, prior open sessions are marked destroyed and their containers
+are removed instead of attempting to reuse stale ttyd credentials.
+
+**Deployment is runbook-gated.** Milestone 6 adds `deploy/setup.sh`,
+`deploy/docker-compose.yml`, and `deploy/README.md`, but the repository artifacts
+do not by themselves change live infrastructure. Running setup on the VPS, changing
+DNS, or changing firewall state requires explicit operator approval.
 
 ---
 
 ## Security posture: DevSecOps from day one
 
-Security is a baseline, not a phase. The CI/CD pipeline enforces security gates
-on every contribution. Reviewers cannot merge code that fails Trivy, TruffleHog,
-or shellcheck. The goal is to make insecure contributions structurally impossible,
-not to rely on reviewer attention.
+Security is a baseline, not a phase. The Milestone 8 CI/CD pipeline is specified
+to enforce security gates on every contribution. Until those workflow files land,
+reviewers should require the same checks manually. The goal is to make insecure
+contributions structurally impossible, not to rely on reviewer attention.
 
 See `GITHUB_WORKFLOWS.md` for the full CI/CD pipeline specification.

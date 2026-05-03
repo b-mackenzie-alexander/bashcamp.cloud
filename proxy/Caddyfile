@@ -1,0 +1,25 @@
+bashcamp.cloud {
+	handle /api/* {
+		reverse_proxy localhost:3000
+	}
+
+	@terminal {
+		path_regexp terminal ^/t/([0-9]+)/
+	}
+	handle @terminal {
+		forward_auth localhost:3000 {
+			uri /api/session/terminal-auth
+			header_up X-Forwarded-Port {http.regexp.terminal.1}
+			copy_headers X-Ttyd-Authorization
+		}
+
+		reverse_proxy localhost:{http.regexp.terminal.1} {
+			header_up Authorization {http.request.header.X-Ttyd-Authorization}
+		}
+	}
+
+	handle {
+		root * /var/www/bashcamp
+		file_server
+	}
+}

@@ -87,7 +87,7 @@ usermod -aG sudo kgarcia
 echo "kgarcia ALL=(ALL:ALL) ALL BADSYNTAX" >> /etc/sudoers
 ```
 
-**Rules — CI will enforce these and fail your PR if violated:**
+**Rules — CI will enforce these after Milestone 8. Until then, run these checks locally:**
 
 1. Must start with `#!/bin/bash` and `set -euo pipefail`
 2. **No `apt`, `apt-get`, `dnf`, or `yum`.** Package installation at session start
@@ -131,10 +131,11 @@ it out. Hints are good; solutions are not.
 4. Test locally (see below)
 5. Open a pull request to `develop`
 
-CI will automatically validate your `meta.json`, lint your `provision.sh`, check
-for forbidden package installation commands, run the provision script against the
-base image, and confirm it exits 0 in under 30 seconds. Fix any failures before
-requesting review.
+The planned CI will automatically validate your `meta.json`, lint your
+`provision.sh`, check for forbidden package installation commands, run the
+provision script against the base image, and confirm it exits 0 in under 30
+seconds. Until those workflows land, run the local checks below and fix any
+failures before requesting review.
 
 ---
 
@@ -164,7 +165,8 @@ docker run -d --name test-scenario \
   --security-opt no-new-privileges:false \
   bashcamp/${DISTRO}-base /sbin/init
 
-docker exec test-scenario bash /dev/stdin < scenarios/${SCENARIO}/provision.sh
+docker cp scenarios/${SCENARIO}/provision.sh test-scenario:/tmp/provision.sh
+docker exec test-scenario bash /tmp/provision.sh
 echo "Exit code: $?"
 
 # Verify the broken state is set up correctly:

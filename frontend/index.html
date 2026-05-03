@@ -1,0 +1,613 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bashcamp</title>
+  <link rel="icon" href="data:,">
+  <script src="vendor/marked.umd.js"></script>
+  <script src="vendor/purify.min.js"></script>
+  <style>
+    :root {
+      --bg: #f4f2ec;
+      --ink: #181714;
+      --muted: #68645c;
+      --panel: #fffdf7;
+      --line: #d7d0c2;
+      --accent: #256f63;
+      --accent-dark: #184d45;
+      --danger: #a33b2f;
+      --terminal: #11140f;
+      --shadow: 0 18px 45px rgba(27, 24, 19, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background:
+        linear-gradient(135deg, rgba(37, 111, 99, 0.13), transparent 32%),
+        repeating-linear-gradient(0deg, rgba(24, 23, 20, 0.035) 0 1px, transparent 1px 32px),
+        var(--bg);
+      font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      border-radius: 6px;
+      color: #fff;
+      background: var(--accent);
+      padding: 0.8rem 1rem;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    button:hover {
+      background: var(--accent-dark);
+    }
+
+    button.secondary {
+      color: var(--ink);
+      background: #e8e1d3;
+    }
+
+    button.secondary:hover {
+      background: #d9cfbd;
+    }
+
+    button.danger {
+      background: var(--danger);
+    }
+
+    input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      padding: 0.85rem;
+      color: var(--ink);
+    }
+
+    label {
+      display: grid;
+      gap: 0.45rem;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1rem clamp(1rem, 4vw, 3rem);
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 253, 247, 0.8);
+      backdrop-filter: blur(10px);
+    }
+
+    .brand {
+      display: grid;
+      gap: 0.2rem;
+    }
+
+    .brand strong {
+      font-size: 1.1rem;
+      letter-spacing: 0;
+    }
+
+    .brand span,
+    .status {
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+
+    main {
+      width: min(1180px, calc(100% - 2rem));
+      margin: 0 auto;
+      padding: clamp(1rem, 4vw, 3rem) 0;
+    }
+
+    .view {
+      display: none;
+    }
+
+    .view.active {
+      display: block;
+    }
+
+    .login-wrap {
+      max-width: 430px;
+      margin: 7vh auto 0;
+      padding: 2rem;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .login-wrap h1,
+    .scenario-heading h1 {
+      margin: 0 0 0.7rem;
+      font-size: clamp(1.8rem, 4vw, 3.1rem);
+      line-height: 1.05;
+    }
+
+    .login-wrap p,
+    .scenario-heading p {
+      margin: 0 0 1.5rem;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .stack {
+      display: grid;
+      gap: 1rem;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 1.2rem;
+    }
+
+    .scenario-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1rem;
+    }
+
+    .scenario-card {
+      display: grid;
+      gap: 0.9rem;
+      padding: 1.2rem;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: 0 10px 28px rgba(27, 24, 19, 0.08);
+    }
+
+    .scenario-card h2 {
+      margin: 0;
+      font-size: 1.1rem;
+    }
+
+    .scenario-card p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+    }
+
+    .pill {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 0.25rem 0.55rem;
+      color: var(--muted);
+      background: #f8f4ea;
+      font-size: 0.78rem;
+    }
+
+    .lab-grid {
+      display: grid;
+      grid-template-columns: minmax(280px, 0.9fr) minmax(480px, 1.5fr);
+      gap: 1rem;
+      align-items: stretch;
+      min-height: calc(100vh - 150px);
+    }
+
+    .brief,
+    .terminal-panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--panel);
+      box-shadow: 0 10px 28px rgba(27, 24, 19, 0.08);
+    }
+
+    .brief-content {
+      height: 100%;
+      max-height: calc(100vh - 155px);
+      overflow: auto;
+      padding: 1.2rem;
+      line-height: 1.55;
+    }
+
+    .brief-content h1,
+    .brief-content h2,
+    .brief-content h3 {
+      line-height: 1.15;
+    }
+
+    .brief-content code {
+      background: #eee6d7;
+      border-radius: 4px;
+      padding: 0.1rem 0.25rem;
+    }
+
+    .terminal-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.8rem 1rem;
+      color: #e8f0e9;
+      background: var(--terminal);
+    }
+
+    .terminal-frame {
+      display: block;
+      width: 100%;
+      height: calc(100vh - 218px);
+      min-height: 480px;
+      border: 0;
+      background: #050604;
+    }
+
+    .message {
+      min-height: 1.4rem;
+      color: var(--danger);
+      font-size: 0.9rem;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    @media (max-width: 860px) {
+      header,
+      .toolbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .lab-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .brief-content {
+        max-height: none;
+      }
+
+      .terminal-frame {
+        height: 62vh;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="brand">
+        <strong>Bashcamp</strong>
+        <span>Real Linux. Real commands. Real practice.</span>
+      </div>
+      <div class="status" id="session-status">Signed out</div>
+    </header>
+
+    <main>
+      <section class="view active" id="login-view">
+        <div class="login-wrap">
+          <h1>Start your lab</h1>
+          <p>Sign in with the account provided by your instructor.</p>
+          <form class="stack" id="login-form">
+            <label>
+              Username
+              <input id="username" name="username" autocomplete="username" required>
+            </label>
+            <label>
+              Password
+              <input id="password" name="password" type="password" autocomplete="current-password" required>
+            </label>
+            <button type="submit">Log in</button>
+            <div class="message" id="login-message" role="status"></div>
+          </form>
+        </div>
+      </section>
+
+      <section class="view" id="scenario-view">
+        <div class="toolbar">
+          <div class="scenario-heading">
+            <h1>Choose a scenario</h1>
+            <p>Pick a broken server, open the terminal, and repair it like the real thing.</p>
+          </div>
+          <button class="secondary" id="logout-button" type="button">Log out</button>
+        </div>
+        <div class="message" id="scenario-message" role="status"></div>
+        <div class="scenario-list" id="scenario-list"></div>
+      </section>
+
+      <section class="view" id="lab-view">
+        <div class="toolbar">
+          <div>
+            <strong id="lab-title">Lab</strong>
+            <div class="status" id="lab-meta"></div>
+          </div>
+          <div>
+            <button class="secondary" id="back-button" type="button">Scenarios</button>
+            <button class="danger" id="reset-button" type="button">Reset</button>
+          </div>
+        </div>
+        <div class="message" id="lab-message" role="status"></div>
+        <div class="lab-grid">
+          <article class="brief">
+            <div class="brief-content" id="scenario-readme"></div>
+          </article>
+          <section class="terminal-panel" aria-label="Terminal">
+            <div class="terminal-bar">
+              <span>Terminal</span>
+              <span id="terminal-url"></span>
+            </div>
+            <iframe class="terminal-frame" id="terminal-frame" title="Bashcamp terminal"></iframe>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const TOKEN_KEY = 'bashcamp_token';
+    const state = {
+      token: localStorage.getItem(TOKEN_KEY),
+      scenarios: [],
+      currentScenario: null,
+    };
+
+    const views = {
+      login: document.getElementById('login-view'),
+      scenarios: document.getElementById('scenario-view'),
+      lab: document.getElementById('lab-view'),
+    };
+
+    const els = {
+      sessionStatus: document.getElementById('session-status'),
+      loginForm: document.getElementById('login-form'),
+      loginMessage: document.getElementById('login-message'),
+      scenarioMessage: document.getElementById('scenario-message'),
+      scenarioList: document.getElementById('scenario-list'),
+      logoutButton: document.getElementById('logout-button'),
+      backButton: document.getElementById('back-button'),
+      resetButton: document.getElementById('reset-button'),
+      labTitle: document.getElementById('lab-title'),
+      labMeta: document.getElementById('lab-meta'),
+      labMessage: document.getElementById('lab-message'),
+      readme: document.getElementById('scenario-readme'),
+      terminalFrame: document.getElementById('terminal-frame'),
+      terminalUrl: document.getElementById('terminal-url'),
+    };
+
+    function show(viewName) {
+      for (const [name, el] of Object.entries(views)) {
+        el.classList.toggle('active', name === viewName);
+      }
+    }
+
+    function setStatus(text) {
+      els.sessionStatus.textContent = text;
+    }
+
+    function setToken(token) {
+      state.token = token;
+      if (token) localStorage.setItem(TOKEN_KEY, token);
+      else localStorage.removeItem(TOKEN_KEY);
+    }
+
+    async function api(path, options = {}) {
+      const headers = { ...(options.headers || {}) };
+      if (state.token) headers.Authorization = `Bearer ${state.token}`;
+      if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
+
+      const response = await fetch(path, {
+        ...options,
+        headers,
+        credentials: 'same-origin',
+      });
+
+      let data = null;
+      const text = await response.text();
+      if (text) data = JSON.parse(text);
+
+      if (response.status === 401) {
+        setToken(null);
+        els.terminalFrame.removeAttribute('src');
+        setStatus('Signed out');
+        show('login');
+        throw new Error(data?.error || 'Please log in again.');
+      }
+
+      if (!response.ok) {
+        const err = new Error(data?.error || `Request failed (${response.status})`);
+        err.status = response.status;
+        throw err;
+      }
+
+      return data;
+    }
+
+    function scenarioById(id) {
+      return state.scenarios.find(scenario => scenario.id === id) || null;
+    }
+
+    async function loadScenarios() {
+      state.scenarios = await api('/api/scenarios');
+      els.scenarioList.innerHTML = '';
+      for (const scenario of state.scenarios) {
+        const card = document.createElement('article');
+        card.className = 'scenario-card';
+
+        const summary = document.createElement('div');
+        const title = document.createElement('h2');
+        title.textContent = scenario.title;
+        const description = document.createElement('p');
+        description.textContent = scenario.description;
+        summary.append(title, description);
+
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+        for (const value of [scenario.distro, scenario.difficulty, `${scenario.duration_minutes} min`]) {
+          const pill = document.createElement('span');
+          pill.className = 'pill';
+          pill.textContent = value;
+          meta.append(pill);
+        }
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = 'Start lab';
+        button.addEventListener('click', () => startScenario(scenario.id));
+
+        card.append(summary, meta, button);
+        els.scenarioList.append(card);
+      }
+    }
+
+    async function loadReadme(scenarioId) {
+      const result = await api(`/api/scenarios/${encodeURIComponent(scenarioId)}/readme`);
+      els.readme.innerHTML = DOMPurify.sanitize(marked.parse(result.markdown));
+    }
+
+    async function showLab(session) {
+      const scenarioId = session.scenario_id || state.currentScenario?.id;
+      state.currentScenario = scenarioById(scenarioId) || state.currentScenario;
+      if (state.currentScenario) {
+        els.labTitle.textContent = state.currentScenario.title;
+        els.labMeta.textContent = `${state.currentScenario.distro} - ${state.currentScenario.difficulty}`;
+        await loadReadme(state.currentScenario.id);
+      }
+      els.terminalUrl.textContent = session.terminal_url;
+      els.terminalFrame.src = session.terminal_url;
+      els.labMessage.textContent = '';
+      setStatus('Lab active');
+      show('lab');
+    }
+
+    async function startScenario(scenarioId) {
+      els.scenarioMessage.textContent = 'Starting lab...';
+      state.currentScenario = scenarioById(scenarioId);
+      try {
+        const session = await api('/api/session/start', {
+          method: 'POST',
+          body: JSON.stringify({ scenario_id: scenarioId }),
+        });
+        await showLab({ ...session, scenario_id: scenarioId });
+      } catch (err) {
+        els.scenarioMessage.textContent = err.message;
+      }
+    }
+
+    async function reconnectSession() {
+      try {
+        const current = await api('/api/session');
+        if (current.status === 'none') return false;
+        if (current.status === 'active' || current.status === 'disconnected') {
+          const reconnected = await api('/api/session/reconnect', { method: 'POST' });
+          await showLab({ ...current, ...reconnected });
+          return true;
+        }
+      } catch (err) {
+        if (err.status === 404 || err.status === 410) {
+          els.scenarioMessage.textContent = 'Your previous lab expired. Start a new scenario when ready.';
+          return false;
+        }
+        throw err;
+      }
+      return false;
+    }
+
+    async function resetSession() {
+      els.labMessage.textContent = 'Resetting lab...';
+      try {
+        const reset = await api('/api/session/reset', { method: 'POST' });
+        await showLab({ ...reset, scenario_id: state.currentScenario?.id });
+      } catch (err) {
+        if (err.status === 410) {
+          els.labMessage.textContent = 'This lab expired. Choose a scenario to start again.';
+          els.terminalFrame.removeAttribute('src');
+          show('scenarios');
+          return;
+        }
+        els.labMessage.textContent = err.message;
+      }
+    }
+
+    async function boot() {
+      if (!state.token) {
+        setStatus('Signed out');
+        show('login');
+        return;
+      }
+
+      try {
+        await loadScenarios();
+        setStatus('Signed in');
+        const reconnected = await reconnectSession();
+        if (!reconnected) show('scenarios');
+      } catch (err) {
+        els.loginMessage.textContent = err.message;
+      }
+    }
+
+    els.loginForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      els.loginMessage.textContent = 'Signing in...';
+      const form = new FormData(event.currentTarget);
+      try {
+        const result = await api('/api/auth/login', {
+          method: 'POST',
+          body: JSON.stringify({
+            username: form.get('username'),
+            password: form.get('password'),
+          }),
+        });
+        setToken(result.token);
+        els.loginMessage.textContent = '';
+        await loadScenarios();
+        setStatus('Signed in');
+        show('scenarios');
+      } catch (err) {
+        els.loginMessage.textContent = err.message;
+      }
+    });
+
+    els.logoutButton.addEventListener('click', async () => {
+      try {
+        await api('/api/auth/logout', { method: 'POST' });
+      } catch {}
+      setToken(null);
+      setStatus('Signed out');
+      show('login');
+    });
+
+    els.backButton.addEventListener('click', () => {
+      show('scenarios');
+    });
+
+    els.resetButton.addEventListener('click', resetSession);
+
+    boot();
+  </script>
+</body>
+</html>
