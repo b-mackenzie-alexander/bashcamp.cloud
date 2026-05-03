@@ -34,6 +34,7 @@ install_packages() {
     debian-archive-keyring \
     apt-transport-https \
     docker.io \
+    docker-compose-plugin \
     git \
     ufw
 
