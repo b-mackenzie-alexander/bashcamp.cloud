@@ -207,6 +207,18 @@ router.post('/reconnect', jwtMiddleware, async (req, res) => {
   res.json({ terminal_url: terminalUrl(newPort) });
 });
 
+// POST /api/session/end — destroy without restarting
+router.post('/end', jwtMiddleware, async (req, res) => {
+  const session = sessionStore.getByUser(req.user.userId);
+  if (!session) return res.status(404).json({ error: 'no session found' });
+
+  if (session.ttydPid) docker.killTtyd(session.ttydPid);
+  await docker.destroyContainer(session.containerName).catch(() => {});
+  portPool.release(session.port);
+  sessionStore.remove(session.sessionId);
+  res.sendStatus(204);
+});
+
 // POST /api/session/reset
 router.post('/reset', jwtMiddleware, async (req, res) => {
   const session = sessionStore.getByUser(req.user.userId);

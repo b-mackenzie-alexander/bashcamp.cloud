@@ -608,7 +608,9 @@
       show('login');
     });
 
-    els.backButton.addEventListener('click', () => {
+    els.backButton.addEventListener('click', async () => {
+      els.terminalFrame.removeAttribute('src');
+      await api('/api/session/end', { method: 'POST' }).catch(() => {});
       show('scenarios');
     });
 
