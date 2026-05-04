@@ -23,7 +23,7 @@ async function createContainer(sessionId, distro) {
     Tmpfs: { '/run': '', '/run/lock': '' },
     CgroupnsMode: 'host',
     Binds: [
-      '/sys/fs/cgroup:/sys/fs/cgroup:ro',
+      '/sys/fs/cgroup:/sys/fs/cgroup:rw',
       `${config.scenariosHostPath}:/scenarios:ro`,
     ],
   };
