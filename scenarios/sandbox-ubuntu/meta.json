@@ -1,0 +1,12 @@
+{
+  "id": "sandbox-ubuntu",
+  "type": "sandbox",
+  "title": "Ubuntu 22.04 Sandbox",
+  "distro": "ubuntu-22.04",
+  "difficulty": "open",
+  "duration_minutes": null,
+  "timed": false,
+  "dynamic": false,
+  "objectives": [],
+  "description": "A production-style Ubuntu 22.04 environment. No objectives — explore freely, practice commands, and reset when done."
+}

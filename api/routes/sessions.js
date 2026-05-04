@@ -239,6 +239,30 @@ router.post('/reset', jwtMiddleware, async (req, res) => {
   }
 });
 
+// GET /api/session/check
+router.get('/check', jwtMiddleware, (req, res) => {
+  const session = sessionStore.getByUser(req.user.userId);
+  if (!session) return res.status(404).json({ error: 'no session found' });
+  if (session.status !== 'active') return res.status(409).json({ error: 'session not active' });
+
+  let checkPath;
+  try {
+    checkPath = safeScenarioPath(session.scenarioId, 'check.sh');
+  } catch {
+    return res.json([]);
+  }
+  if (!fs.existsSync(checkPath)) return res.json([]);
+
+  try {
+    const output = docker.runCheck(session.containerName, session.scenarioId);
+    const results = JSON.parse(output.trim());
+    res.json(Array.isArray(results) ? results : []);
+  } catch (err) {
+    console.error('check error (session %s):', session.sessionId, err.message);
+    res.json([]);
+  }
+});
+
 // GET /api/session/terminal-auth
 router.get('/terminal-auth', (req, res) => {
   const port = Number(req.headers['x-forwarded-port']);

@@ -1,5 +1,7 @@
 {
   "id": "privilege-escalation-01",
+  "type": "scenario",
+  "starting_user": "sr_sysadmin",
   "title": "Broken Sudoers",
   "distro": "ubuntu-22.04",
   "distro_pair": "privilege-escalation-01-rocky",

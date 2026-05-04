@@ -75,15 +75,22 @@ function spawnTtyd(port, sessionId, terminalSecret, onExit) {
     '--port', String(port),
     '--writable',
     '--credential', `${sessionId}:${terminalSecret}`,
-    'docker', 'exec', '-it', `session-${sessionId}`, '/bin/bash',
+    'docker', 'exec', '-it', '--user', 'sr_sysadmin', `session-${sessionId}`, '/bin/bash', '-l',
   ], { detached: false });
   proc.on('error', err => console.error('ttyd spawn error (session %s): %s', sessionId, err.message));
   proc.on('exit', onExit);
   return proc.pid;
 }
 
+function runCheck(containerName, scenarioId) {
+  return execFileSync(
+    'docker', ['exec', '--user', 'root', containerName, 'bash', `/scenarios/${scenarioId}/check.sh`],
+    { timeout: 10_000, encoding: 'utf8' }
+  );
+}
+
 function killTtyd(pid) {
   try { process.kill(pid, 'SIGTERM'); } catch (_) {}
 }
 
-module.exports = { createContainer, destroyContainer, runProvision, spawnTtyd, killTtyd };
+module.exports = { createContainer, destroyContainer, runProvision, runCheck, spawnTtyd, killTtyd };

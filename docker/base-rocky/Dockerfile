@@ -49,4 +49,8 @@ RUN systemctl mask \
     sys-kernel-config.mount
 
 # Rocky uses the full path — /sbin/init is not guaranteed to be a symlink here
+RUN useradd -m -s /bin/bash sr_sysadmin \
+  && echo "sr_sysadmin:BashcampAdmin1!" | chpasswd \
+  && usermod -aG wheel sr_sysadmin
+
 ENTRYPOINT ["/usr/lib/systemd/systemd"]

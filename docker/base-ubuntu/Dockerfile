@@ -53,4 +53,8 @@ RUN systemctl mask \
     systemd-update-utmp.service \
     systemd-update-utmp-runlevel.service
 
+RUN useradd -m -s /bin/bash sr_sysadmin \
+  && echo "sr_sysadmin:BashcampAdmin1!" | chpasswd \
+  && usermod -aG sudo sr_sysadmin
+
 ENTRYPOINT ["/sbin/init"]

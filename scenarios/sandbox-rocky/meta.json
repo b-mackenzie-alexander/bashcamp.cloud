@@ -1,0 +1,12 @@
+{
+  "id": "sandbox-rocky",
+  "type": "sandbox",
+  "title": "Rocky Linux 9 Sandbox",
+  "distro": "rocky-9",
+  "difficulty": "open",
+  "duration_minutes": null,
+  "timed": false,
+  "dynamic": false,
+  "objectives": [],
+  "description": "A production-style Rocky Linux 9 environment. No objectives — explore freely, practice commands, and reset when done."
+}
