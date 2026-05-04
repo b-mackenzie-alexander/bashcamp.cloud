@@ -73,6 +73,7 @@ function runProvision(containerName, provisionPath) {
 function spawnTtyd(port, sessionId, terminalSecret, onExit) {
   const proc = spawn('ttyd', [
     '--port', String(port),
+    '--writable',
     '--credential', `${sessionId}:${terminalSecret}`,
     'docker', 'exec', '-it', `session-${sessionId}`, '/bin/bash',
   ], { detached: false });
