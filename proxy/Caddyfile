@@ -13,6 +13,8 @@ bashcamp.cloud {
 			copy_headers X-Ttyd-Authorization
 		}
 
+		uri strip_prefix /t/{http.regexp.terminal.1}
+
 		reverse_proxy localhost:{http.regexp.terminal.1} {
 			header_up Authorization {http.request.header.X-Ttyd-Authorization}
 		}
