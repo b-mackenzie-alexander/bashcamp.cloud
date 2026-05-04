@@ -11,6 +11,7 @@ services:
       - ../data:/data
     ports:
       - "127.0.0.1:3000:3000"
+      - "127.0.0.1:9000-9099:9000-9099"
     environment:
       - JWT_SECRET=${JWT_SECRET?JWT_SECRET_is_required}
       - USERS_FILE=/config/users.json
