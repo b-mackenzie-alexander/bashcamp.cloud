@@ -517,11 +517,7 @@
         } catch (err) {
           if (err.status !== 409) throw err;
           els.scenarioMessage.textContent = 'Clearing previous session...';
-          await api('/api/session/reset', { method: 'POST' });
-          session = await api('/api/session/start', {
-            method: 'POST',
-            body: JSON.stringify({ scenario_id: scenarioId }),
-          });
+          session = await api('/api/session/reset', { method: 'POST' });
         }
         await showLab({ ...session, scenario_id: scenarioId });
       } catch (err) {
