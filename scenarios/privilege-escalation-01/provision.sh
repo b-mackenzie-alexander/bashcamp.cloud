@@ -20,6 +20,11 @@ if ! id jdeng &>/dev/null; then
 fi
 echo "jdeng:changeme" | chpasswd
 
-# Seed plausible log noise
-logger "Failed password for root from 192.168.1.105"
-logger "sudo: pam_unix(sudo:auth): authentication failure"
+# Seed plausible log noise — logger requires rsyslog to be running;
+# retry briefly to tolerate systemd still starting up, then skip if unavailable.
+for msg in "Failed password for root from 192.168.1.105" "sudo: pam_unix(sudo:auth): authentication failure"; do
+  for _ in 1 2 3 4 5; do
+    logger "$msg" 2>/dev/null && break
+    sleep 1
+  done || true
+done

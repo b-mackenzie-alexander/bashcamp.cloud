@@ -11,6 +11,23 @@ const IMAGE = {
   'rocky-9': 'bashcamp/rocky-9-base',
 };
 
+async function waitForSystemd(containerName, timeoutMs = 20000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const out = execFileSync(
+        'docker', ['exec', containerName, 'systemctl', 'is-system-running'],
+        { timeout: 3000, encoding: 'utf8' }
+      ).trim();
+      if (out === 'running' || out === 'degraded') return;
+    } catch (e) {
+      const out = (e.stdout || '').trim();
+      if (out === 'running' || out === 'degraded') return;
+    }
+    await new Promise(r => setTimeout(r, 500));
+  }
+}
+
 async function createContainer(sessionId, distro) {
   const containerName = `session-${sessionId}`;
   const hostConfig = {
@@ -35,6 +52,7 @@ async function createContainer(sessionId, distro) {
     HostConfig: hostConfig,
   });
   await container.start();
+  await waitForSystemd(containerName);
   return containerName;
 }
 
