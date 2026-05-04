@@ -502,6 +502,19 @@
       els.labMessage.textContent = '';
       setStatus('Lab active');
       show('lab');
+      // After iframe loads, focus the xterm.js textarea so keyboard input works immediately.
+      // Same-origin (both on bashcamp.cloud) so contentDocument access is allowed.
+      els.terminalFrame.addEventListener('load', function focusTerminal() {
+        els.terminalFrame.removeEventListener('load', focusTerminal);
+        setTimeout(() => {
+          try {
+            const ta = els.terminalFrame.contentDocument?.querySelector('.xterm-helper-textarea');
+            if (ta) { ta.focus(); return; }
+            // Fallback: click the terminal screen element
+            els.terminalFrame.contentDocument?.querySelector('.xterm-screen')?.click();
+          } catch (_) {}
+        }, 500);
+      });
     }
 
     async function startScenario(scenarioId) {
@@ -615,6 +628,15 @@
     });
 
     els.resetButton.addEventListener('click', resetSession);
+
+    // Re-focus the xterm terminal whenever the user clicks anywhere on the iframe
+    els.terminalFrame.addEventListener('mousedown', () => {
+      setTimeout(() => {
+        try {
+          els.terminalFrame.contentDocument?.querySelector('.xterm-helper-textarea')?.focus();
+        } catch (_) {}
+      }, 50);
+    });
 
     boot();
   </script>
