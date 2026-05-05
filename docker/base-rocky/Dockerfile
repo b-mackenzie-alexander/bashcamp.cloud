@@ -38,6 +38,11 @@ RUN sed -i '/^tsflags/d' /etc/dnf/dnf.conf \
     xz \
     zip \
     unzip \
+    # access control and file management (Linux+ exam objectives)
+    acl \
+    at \
+    diffutils \
+    rsync \
     # additional realistic tooling
     procps-ng \
     lsof \

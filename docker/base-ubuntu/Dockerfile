@@ -42,6 +42,11 @@ RUN rm -f /etc/dpkg/dpkg.cfg.d/excludes \
     xz-utils \
     zip \
     unzip \
+    # access control and file management (Linux+ exam objectives)
+    acl \
+    at \
+    diffutils \
+    rsync \
     # additional realistic tooling
     procps \
     lsof \
