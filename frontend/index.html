@@ -692,15 +692,16 @@
       return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
     }
 
-    function startElapsedTimer(startedAt) {
+    function startElapsedTimer(session) {
       stopTimer();
-      if (!startedAt) return;
+      if (!session?.started_at) return;
+      let elapsed = Math.max(0, Math.floor(Number(session.elapsed_seconds) || 0));
       els.labTimer.classList.remove('hidden');
 
       function tick() {
-        const elapsed = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
         els.labTimer.textContent = `Elapsed ${formatElapsed(elapsed)}`;
         els.labTimer.className = 'lab-timer';
+        elapsed += 1;
       }
       tick();
       timerInterval = setInterval(tick, 1000);
@@ -709,9 +710,11 @@
     // --- Objectives ---
     let objectiveInterval = null;
     let isCheckingObjectives = false;
+    let objectivePollId = 0;
 
     function stopObjectivePolling() {
       if (objectiveInterval) { clearInterval(objectiveInterval); objectiveInterval = null; }
+      objectivePollId += 1;
     }
 
     function resetObjectivesPanel() {
@@ -748,6 +751,7 @@
     async function checkObjectives(options = {}) {
       if (isCheckingObjectives) return;
       const silent = options.silent === true;
+      const pollId = options.pollId ?? objectivePollId;
       isCheckingObjectives = true;
       if (!silent) {
         els.checkObjectivesBtn.disabled = true;
@@ -755,11 +759,14 @@
       }
       try {
         const payload = await api('/api/session/check');
+        if (pollId !== objectivePollId) return;
         renderObjectives(payload);
       } catch (err) {
+        if (pollId !== objectivePollId) return;
         if (!silent) els.labMessage.textContent = err.message;
       } finally {
         isCheckingObjectives = false;
+        if (pollId !== objectivePollId) return;
         if (!silent) {
           els.checkObjectivesBtn.disabled = false;
           els.checkObjectivesBtn.textContent = 'Check';
@@ -769,8 +776,9 @@
 
     function startObjectivePolling() {
       stopObjectivePolling();
-      checkObjectives({ silent: true });
-      objectiveInterval = setInterval(() => checkObjectives({ silent: true }), 30_000);
+      const pollId = objectivePollId;
+      checkObjectives({ silent: true, pollId });
+      objectiveInterval = setInterval(() => checkObjectives({ silent: true, pollId }), 30_000);
     }
 
     async function leaveLabAndReturn() {
@@ -794,7 +802,7 @@
         els.labMeta.textContent = `${state.currentScenario.distro} - ${state.currentScenario.difficulty}`;
         await loadReadme(state.currentScenario.id);
         if (state.currentScenario.type !== 'sandbox') {
-          startElapsedTimer(session.started_at);
+          startElapsedTimer(session);
         }
         if (state.currentScenario.type !== 'sandbox') {
           els.objectivesPanel.classList.remove('hidden');
