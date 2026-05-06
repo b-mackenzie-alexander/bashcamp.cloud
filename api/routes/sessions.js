@@ -49,6 +49,28 @@ function setTerminalCookie(res, sessionId, terminalSecret) {
   );
 }
 
+function sessionPayload(session, extra = {}) {
+  const now = Date.now();
+  return {
+    ...extra,
+    status: session.status,
+    scenario_id: session.scenarioId,
+    terminal_url: terminalUrl(session.port),
+    started_at: session.createdAt,
+    elapsed_seconds: Math.max(0, Math.floor((now - session.createdAt) / 1000)),
+    disconnected_at: session.disconnectedAt,
+    expires_at: session.expiresAt,
+  };
+}
+
+function checkPayload(objectives) {
+  return {
+    objectives,
+    complete: objectives.length > 0 && objectives.every(objective => objective.passed === true),
+    checked_at: Date.now(),
+  };
+}
+
 function safeScenarioPath(scenarioId, fileName) {
   if (!SCENARIO_ID_RE.test(scenarioId)) {
     const err = new Error('invalid scenario_id');
@@ -136,20 +158,15 @@ async function startSession(userId, scenarioId) {
     expiresAt: null,
   });
 
-  return { sessionId, terminal_url: terminalUrl(port), terminalSecret };
+  const session = sessionStore.get(sessionId);
+  return { ...sessionPayload(session, { session_id: sessionId }), sessionId, terminalSecret };
 }
 
 // GET /api/session
 router.get('/', jwtMiddleware, (req, res) => {
   const session = sessionStore.getByUser(req.user.userId);
-  if (!session) return res.status(404).json({ status: 'none' });
-  res.json({
-    status: session.status,
-    scenario_id: session.scenarioId,
-    terminal_url: terminalUrl(session.port),
-    disconnected_at: session.disconnectedAt,
-    expires_at: session.expiresAt,
-  });
+  if (!session) return res.json({ status: 'none' });
+  res.json(sessionPayload(session));
 });
 
 // POST /api/session/start
@@ -163,7 +180,9 @@ router.post('/start', jwtMiddleware, async (req, res) => {
   try {
     const result = await startSession(req.user.userId, scenario_id);
     setTerminalCookie(res, result.sessionId, result.terminalSecret);
-    res.json({ session_id: result.sessionId, terminal_url: result.terminal_url });
+    delete result.terminalSecret;
+    delete result.sessionId;
+    res.json(result);
   } catch (err) {
     if (err.code === 'INVALID_SCENARIO_ID') return res.status(400).json({ error: err.message });
     if (err.code === 'NOT_FOUND') return res.status(404).json({ error: err.message });
@@ -180,7 +199,7 @@ router.post('/reconnect', jwtMiddleware, async (req, res) => {
 
   if (session.status === 'active') {
     setTerminalCookie(res, session.sessionId, session.terminalSecret);
-    return res.json({ terminal_url: terminalUrl(session.port) });
+    return res.json(sessionPayload(session, { session_id: session.sessionId }));
   }
 
   if (session.expiresAt && Date.now() > session.expiresAt) {
@@ -204,7 +223,8 @@ router.post('/reconnect', jwtMiddleware, async (req, res) => {
   });
 
   setTerminalCookie(res, session.sessionId, newSecret);
-  res.json({ terminal_url: terminalUrl(newPort) });
+  const updated = sessionStore.get(session.sessionId);
+  res.json(sessionPayload(updated, { session_id: session.sessionId }));
 });
 
 // POST /api/session/end — destroy without restarting
@@ -232,7 +252,9 @@ router.post('/reset', jwtMiddleware, async (req, res) => {
   try {
     const result = await startSession(req.user.userId, session.scenarioId);
     setTerminalCookie(res, result.sessionId, result.terminalSecret);
-    res.json({ session_id: result.sessionId, terminal_url: result.terminal_url });
+    delete result.terminalSecret;
+    delete result.sessionId;
+    res.json(result);
   } catch (err) {
     console.error('session reset error:', err);
     res.status(500).json({ error: 'failed to reset session' });
@@ -249,17 +271,17 @@ router.get('/check', jwtMiddleware, (req, res) => {
   try {
     checkPath = safeScenarioPath(session.scenarioId, 'check.sh');
   } catch {
-    return res.json([]);
+    return res.json(checkPayload([]));
   }
-  if (!fs.existsSync(checkPath)) return res.json([]);
+  if (!fs.existsSync(checkPath)) return res.json(checkPayload([]));
 
   try {
     const output = docker.runCheck(session.containerName, checkPath);
     const results = JSON.parse(output.trim());
-    res.json(Array.isArray(results) ? results : []);
+    res.json(checkPayload(Array.isArray(results) ? results : []));
   } catch (err) {
     console.error('check error (session %s):', session.sessionId, err.message);
-    res.json([]);
+    res.json(checkPayload([]));
   }
 });
 

@@ -41,6 +41,30 @@ test('frontend calls the milestone API endpoints', () => {
   assert.match(html, /\/api\/scenarios\/\$\{encodeURIComponent\(scenarioId\)\}\/readme/);
 });
 
+test('frontend renders elapsed lab time from backend session start', () => {
+  assert.match(html, /function startElapsedTimer\(session\)/);
+  assert.match(html, /session\?\.started_at/);
+  assert.match(html, /session\.elapsed_seconds/);
+  assert.doesNotMatch(html, /Date\.now\(\) - startedAt/);
+  assert.doesNotMatch(html, /function startTimer\(durationMinutes\)/);
+});
+
+test('frontend automatically checks objectives while preserving manual checks', () => {
+  assert.match(html, /let objectiveInterval = null/);
+  assert.match(html, /let isCheckingObjectives = false/);
+  assert.match(html, /let objectivePollId = 0/);
+  assert.match(html, /if \(isCheckingObjectives\) return/);
+  assert.match(html, /if \(pollId !== objectivePollId\) return/);
+  assert.match(html, /startObjectivePolling\(\)/);
+  assert.match(html, /checked_at/);
+  assert.match(html, /els\.checkObjectivesBtn\.addEventListener\('click', checkObjectives\)/);
+});
+
+test('frontend announces objective status updates to assistive technology', () => {
+  assert.match(html, /id="objectives-status" role="status" aria-live="polite" aria-atomic="true"/);
+  assert.match(html, /id="complete-banner" role="status" aria-live="polite" aria-atomic="true"/);
+});
+
 test('frontend ends stale sessions before starting a different scenario', () => {
   const startScenarioMatch = html.match(/async function startScenario\(scenarioId\) \{[\s\S]+?\n    \}/);
   assert.ok(startScenarioMatch, 'startScenario should exist');

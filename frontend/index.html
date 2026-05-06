@@ -314,19 +314,6 @@
       color: var(--ink);
     }
 
-    .lab-timer.warn { background: #e65100; color: #fff; }
-    .lab-timer.danger { background: var(--danger); color: #fff; }
-
-    .timer-expired-banner {
-      margin-bottom: 0.75rem;
-      padding: 0.6rem 0.9rem;
-      background: #fff8e1;
-      border: 1px solid #ffe082;
-      border-radius: 6px;
-      font-size: 0.85rem;
-      color: #5d4037;
-    }
-
     /* Objectives panel */
     .objectives {
       margin-top: 1.5rem;
@@ -361,6 +348,12 @@
       padding: 0;
       display: grid;
       gap: 0.5rem;
+    }
+
+    .objectives-status {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.78rem;
     }
 
     .objective-item {
@@ -496,9 +489,6 @@
         <div class="lab-grid">
           <article class="brief">
             <div class="brief-content">
-              <div class="timer-expired-banner hidden" id="timer-expired-banner">
-                Time's up — your lab environment is still active. Review the objectives below.
-              </div>
               <div id="scenario-readme"></div>
               <div class="objectives hidden" id="objectives-panel">
                 <div class="objectives-header">
@@ -506,7 +496,8 @@
                   <button class="objectives-check-btn" id="check-objectives-btn" type="button">Check</button>
                 </div>
                 <ul class="objective-list" id="objective-list"></ul>
-                <div class="complete-banner hidden" id="complete-banner">
+                <div class="objectives-status" id="objectives-status" role="status" aria-live="polite" aria-atomic="true">Not checked yet.</div>
+                <div class="complete-banner hidden" id="complete-banner" role="status" aria-live="polite" aria-atomic="true">
                   <strong>Scenario complete!</strong>
                   <button id="leave-lab-btn" type="button">Leave lab</button>
                 </div>
@@ -552,10 +543,10 @@
       labMeta: document.getElementById('lab-meta'),
       labMessage: document.getElementById('lab-message'),
       labTimer: document.getElementById('lab-timer'),
-      timerExpiredBanner: document.getElementById('timer-expired-banner'),
       readme: document.getElementById('scenario-readme'),
       objectivesPanel: document.getElementById('objectives-panel'),
       objectiveList: document.getElementById('objective-list'),
+      objectivesStatus: document.getElementById('objectives-status'),
       checkObjectivesBtn: document.getElementById('check-objectives-btn'),
       completeBanner: document.getElementById('complete-banner'),
       leaveLabBtn: document.getElementById('leave-lab-btn'),
@@ -689,43 +680,53 @@
       if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
       els.labTimer.classList.add('hidden');
       els.labTimer.className = 'lab-timer hidden';
-      els.timerExpiredBanner.classList.add('hidden');
     }
 
-    function startTimer(durationMinutes) {
+    function formatElapsed(seconds) {
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = seconds % 60;
+      if (h > 0) {
+        return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+      }
+      return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+
+    function startElapsedTimer(session) {
       stopTimer();
-      let remaining = durationMinutes * 60;
+      if (!session?.started_at) return;
+      let elapsed = Math.max(0, Math.floor(Number(session.elapsed_seconds) || 0));
       els.labTimer.classList.remove('hidden');
 
       function tick() {
-        if (remaining <= 0) {
-          clearInterval(timerInterval);
-          timerInterval = null;
-          els.labTimer.textContent = '00:00';
-          els.labTimer.className = 'lab-timer danger';
-          els.timerExpiredBanner.classList.remove('hidden');
-          return;
-        }
-        const m = Math.floor(remaining / 60);
-        const s = remaining % 60;
-        els.labTimer.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-        if (remaining <= 60) els.labTimer.className = 'lab-timer danger';
-        else if (remaining <= 300) els.labTimer.className = 'lab-timer warn';
-        else els.labTimer.className = 'lab-timer';
-        remaining--;
+        els.labTimer.textContent = `Elapsed ${formatElapsed(elapsed)}`;
+        els.labTimer.className = 'lab-timer';
+        elapsed += 1;
       }
       tick();
       timerInterval = setInterval(tick, 1000);
     }
 
     // --- Objectives ---
+    let objectiveInterval = null;
+    let isCheckingObjectives = false;
+    let objectivePollId = 0;
+
+    function stopObjectivePolling() {
+      if (objectiveInterval) { clearInterval(objectiveInterval); objectiveInterval = null; }
+      objectivePollId += 1;
+    }
+
     function resetObjectivesPanel() {
+      stopObjectivePolling();
       els.objectivesPanel.classList.add('hidden');
       els.objectiveList.replaceChildren();
+      els.objectivesStatus.textContent = 'Not checked yet.';
       els.completeBanner.classList.add('hidden');
     }
 
-    function renderObjectives(results) {
+    function renderObjectives(payload) {
+      const results = Array.isArray(payload) ? payload : payload?.objectives;
       if (!results || results.length === 0) {
         els.objectivesPanel.classList.add('hidden');
         return;
@@ -738,27 +739,51 @@
         const item = makeEl('li', { className: `objective-item ${obj.passed ? 'pass' : 'fail'}` }, icon, label);
         els.objectiveList.append(item);
       }
-      const allPassed = results.every(r => r.passed);
+      const checkedAt = payload?.checked_at ? new Date(payload.checked_at) : null;
+      els.objectivesStatus.textContent = checkedAt
+        ? `Last checked ${checkedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })}`
+        : 'Checked just now.';
+      const allPassed = payload?.complete ?? results.every(r => r.passed);
       if (allPassed) els.completeBanner.classList.remove('hidden');
       else els.completeBanner.classList.add('hidden');
     }
 
-    async function checkObjectives() {
-      els.checkObjectivesBtn.disabled = true;
-      els.checkObjectivesBtn.textContent = 'Checking…';
-      try {
-        const results = await api('/api/session/check');
-        renderObjectives(results);
-      } catch {
-        // silently ignore — objectives panel stays as-is
-      } finally {
-        els.checkObjectivesBtn.disabled = false;
-        els.checkObjectivesBtn.textContent = 'Check';
+    async function checkObjectives(options = {}) {
+      if (isCheckingObjectives) return;
+      const silent = options.silent === true;
+      const pollId = options.pollId ?? objectivePollId;
+      isCheckingObjectives = true;
+      if (!silent) {
+        els.checkObjectivesBtn.disabled = true;
+        els.checkObjectivesBtn.textContent = 'Checking...';
       }
+      try {
+        const payload = await api('/api/session/check');
+        if (pollId !== objectivePollId) return;
+        renderObjectives(payload);
+      } catch (err) {
+        if (pollId !== objectivePollId) return;
+        if (!silent) els.labMessage.textContent = err.message;
+      } finally {
+        isCheckingObjectives = false;
+        if (pollId !== objectivePollId) return;
+        if (!silent) {
+          els.checkObjectivesBtn.disabled = false;
+          els.checkObjectivesBtn.textContent = 'Check';
+        }
+      }
+    }
+
+    function startObjectivePolling() {
+      stopObjectivePolling();
+      const pollId = objectivePollId;
+      checkObjectives({ silent: true, pollId });
+      objectiveInterval = setInterval(() => checkObjectives({ silent: true, pollId }), 30_000);
     }
 
     async function leaveLabAndReturn() {
       stopTimer();
+      stopObjectivePolling();
       resetObjectivesPanel();
       els.terminalFrame.removeAttribute('src');
       await api('/api/session/end', { method: 'POST' }).catch(() => {});
@@ -771,17 +796,17 @@
 
       stopTimer();
       resetObjectivesPanel();
-      els.timerExpiredBanner.classList.add('hidden');
 
       if (state.currentScenario) {
         els.labTitle.textContent = state.currentScenario.title;
         els.labMeta.textContent = `${state.currentScenario.distro} - ${state.currentScenario.difficulty}`;
         await loadReadme(state.currentScenario.id);
-        if (state.currentScenario.timed && state.currentScenario.duration_minutes) {
-          startTimer(state.currentScenario.duration_minutes);
+        if (state.currentScenario.type !== 'sandbox') {
+          startElapsedTimer(session);
         }
         if (state.currentScenario.type !== 'sandbox') {
           els.objectivesPanel.classList.remove('hidden');
+          startObjectivePolling();
         }
       }
       els.terminalUrl.textContent = session.terminal_url;
@@ -850,6 +875,7 @@
 
     async function resetSession() {
       stopTimer();
+      stopObjectivePolling();
       resetObjectivesPanel();
       els.labMessage.textContent = 'Resetting lab...';
       try {
@@ -909,6 +935,8 @@
       try {
         await api('/api/auth/logout', { method: 'POST' });
       } catch {}
+      stopTimer();
+      stopObjectivePolling();
       setToken(null);
       setStatus('Signed out');
       show('login');
@@ -916,6 +944,7 @@
 
     els.backButton.addEventListener('click', async () => {
       stopTimer();
+      stopObjectivePolling();
       resetObjectivesPanel();
       els.terminalFrame.removeAttribute('src');
       await api('/api/session/end', { method: 'POST' }).catch(() => {});
