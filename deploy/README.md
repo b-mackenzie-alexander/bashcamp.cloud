@@ -124,6 +124,9 @@ Expected behavior:
 - `/api/scenarios` returns `401` without a JWT.
 - ttyd ports `9000-9099` are not reachable directly from the internet.
 - Login, scenario start, terminal attach, reset, and reconnect work in the browser.
+- Fresh terminal sessions open as `sr_sysadmin`, not root.
+- `ls /` inside a lab container does not expose `/scenarios`.
+- `man ls` works without asking the student to run `unminimize`.
 - Restarting the API container cleans up stale session metadata and orphaned lab
   containers instead of preserving terminal access across restart.
 

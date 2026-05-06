@@ -54,6 +54,7 @@ RUN rm -f /etc/dpkg/dpkg.cfg.d/excludes \
     dnsutils \
     file \
     tree \
+  && if [ -x /usr/bin/man.REAL ]; then mv /usr/bin/man.REAL /usr/bin/man; fi \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 

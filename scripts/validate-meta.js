@@ -16,6 +16,11 @@ const REQUIRED_FIELDS = {
 
 const DISTRO_VALUES = ['ubuntu-22.04', 'rocky-9'];
 const DIFFICULTY_VALUES = ['beginner', 'intermediate', 'advanced'];
+const TYPE_VALUES = ['scenario', 'sandbox'];
+
+function isSandbox(data) {
+  return data.type === 'sandbox';
+}
 
 function validate(filePath) {
   const errors = [];
@@ -42,11 +47,14 @@ function validate(filePath) {
     const val = data[field];
     if (type === 'array') {
       if (!Array.isArray(val)) errors.push(`${field} must be an array`);
-      else if (val.length === 0) errors.push(`${field} must be non-empty`);
+      else if (val.length === 0 && !isSandbox(data)) errors.push(`${field} must be non-empty`);
     } else if (type === 'string') {
       if (typeof val !== 'string') errors.push(`${field} must be a string`);
       else if (val.trim() === '') errors.push(`${field} must be non-empty`);
     } else if (type === 'number') {
+      if (isSandbox(data) && field === 'duration_minutes' && val === null) {
+        continue;
+      }
       if (!Number.isInteger(val)) errors.push(`${field} must be an integer`);
       else if (val < 1 || val > 120) errors.push(`${field} must be between 1 and 120`);
     }
@@ -56,8 +64,13 @@ function validate(filePath) {
     errors.push(`distro must be one of: ${DISTRO_VALUES.join(', ')}`);
   }
 
-  if (data.difficulty && !DIFFICULTY_VALUES.includes(data.difficulty)) {
-    errors.push(`difficulty must be one of: ${DIFFICULTY_VALUES.join(', ')}`);
+  const difficultyValues = isSandbox(data) ? ['open'] : DIFFICULTY_VALUES;
+  if (data.difficulty && !difficultyValues.includes(data.difficulty)) {
+    errors.push(`difficulty must be one of: ${difficultyValues.join(', ')}`);
+  }
+
+  if (data.type && !TYPE_VALUES.includes(data.type)) {
+    errors.push(`type must be one of: ${TYPE_VALUES.join(', ')}`);
   }
 
   if (data.objectives && Array.isArray(data.objectives)) {

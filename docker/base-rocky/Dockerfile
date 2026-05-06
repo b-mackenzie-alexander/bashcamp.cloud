@@ -25,6 +25,7 @@ RUN sed -i '/^tsflags/d' /etc/dnf/dnf.conf \
     iproute \
     man-db \
     man-pages \
+    coreutils-common \
     bash-completion \
     # user and privilege management
     sudo \

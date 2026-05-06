@@ -17,7 +17,6 @@ services:
       - USERS_FILE=/config/users.json
       - DATABASE_PATH=/data/bashcamp.sqlite
       - SCENARIOS_PATH=/scenarios
-      - SCENARIOS_HOST_PATH=/opt/bashcamp/scenarios
       - SESSION_TIMEOUT_MINUTES=${SESSION_TIMEOUT_MINUTES:-30}
       - RECONNECT_WINDOW_MINUTES=${RECONNECT_WINDOW_MINUTES:-15}
     healthcheck:

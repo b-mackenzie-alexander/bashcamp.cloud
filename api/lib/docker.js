@@ -2,7 +2,6 @@
 
 const Docker = require('dockerode');
 const { spawn, execFileSync } = require('child_process');
-const config = require('./config');
 
 const docker = new Docker();
 
@@ -41,7 +40,6 @@ async function createContainer(sessionId, distro) {
     CgroupnsMode: 'host',
     Binds: [
       '/sys/fs/cgroup:/sys/fs/cgroup:rw',
-      `${config.scenariosHostPath}:/scenarios:ro`,
     ],
   };
 
@@ -82,9 +80,10 @@ function spawnTtyd(port, sessionId, terminalSecret, onExit) {
   return proc.pid;
 }
 
-function runCheck(containerName, scenarioId) {
+function runCheck(containerName, checkPath) {
+  execFileSync('docker', ['cp', checkPath, `${containerName}:/tmp/check.sh`]);
   return execFileSync(
-    'docker', ['exec', '--user', 'root', containerName, 'bash', `/scenarios/${scenarioId}/check.sh`],
+    'docker', ['exec', '--user', 'root', containerName, 'bash', '/tmp/check.sh'],
     { timeout: 10_000, encoding: 'utf8' }
   );
 }

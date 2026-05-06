@@ -254,7 +254,7 @@ router.get('/check', jwtMiddleware, (req, res) => {
   if (!fs.existsSync(checkPath)) return res.json([]);
 
   try {
-    const output = docker.runCheck(session.containerName, session.scenarioId);
+    const output = docker.runCheck(session.containerName, checkPath);
     const results = JSON.parse(output.trim());
     res.json(Array.isArray(results) ? results : []);
   } catch (err) {

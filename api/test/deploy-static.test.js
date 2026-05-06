@@ -15,11 +15,38 @@ test('API Dockerfile includes host Docker and ttyd runtime dependencies', () => 
   const dockerfile = read('api/Dockerfile');
 
   assert.match(dockerfile, /^FROM node:\d+-bookworm-slim/m);
-  assert.match(dockerfile, /docker\.io/);
+  assert.match(dockerfile, /docker-ce-cli/);
   assert.match(dockerfile, /ttyd/);
   assert.match(dockerfile, /npm ci --omit=dev/);
   assert.match(dockerfile, /EXPOSE 3000/);
   assert.match(dockerfile, /CMD \["npm", "start"\]/);
+});
+
+test('student containers do not expose the host scenario repository', () => {
+  const dockerLib = read('api/lib/docker.js');
+
+  assert.doesNotMatch(dockerLib, /scenariosHostPath/);
+  assert.doesNotMatch(dockerLib, /:\/scenarios:ro/);
+  assert.doesNotMatch(dockerLib, /\/scenarios\/\$\{scenarioId\}\/check\.sh/);
+});
+
+test('ttyd launches writable terminals as the student admin user', () => {
+  const dockerLib = read('api/lib/docker.js');
+
+  assert.match(dockerLib, /'--writable'/);
+  assert.match(dockerLib, /'--user', 'sr_sysadmin'/);
+});
+
+test('base images restore manual pages for Linux+ practice realism', () => {
+  const ubuntu = read('docker/base-ubuntu/Dockerfile');
+  const rocky = read('docker/base-rocky/Dockerfile');
+
+  assert.match(ubuntu, /man-db/);
+  assert.match(ubuntu, /manpages/);
+  assert.match(ubuntu, /man\.REAL/);
+  assert.match(rocky, /man-db/);
+  assert.match(rocky, /man-pages/);
+  assert.match(rocky, /coreutils-common/);
 });
 
 test('production compose runs only the API behind localhost Caddy', () => {
@@ -35,7 +62,7 @@ test('production compose runs only the API behind localhost Caddy', () => {
   assert.match(compose, /USERS_FILE=\/config\/users\.json/);
   assert.match(compose, /DATABASE_PATH=\/data\/bashcamp\.sqlite/);
   assert.match(compose, /SCENARIOS_PATH=\/scenarios/);
-  assert.match(compose, /SCENARIOS_HOST_PATH=\/opt\/bashcamp\/scenarios/);
+  assert.doesNotMatch(compose, /SCENARIOS_HOST_PATH/);
   assert.match(compose, /JWT_SECRET=\$\{JWT_SECRET\?\S+/);
   assert.match(compose, /restart: unless-stopped/);
   assert.match(compose, /healthcheck:/);
