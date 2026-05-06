@@ -49,9 +49,16 @@ test('frontend renders elapsed lab time from backend session start', () => {
 
 test('frontend automatically checks objectives while preserving manual checks', () => {
   assert.match(html, /let objectiveInterval = null/);
+  assert.match(html, /let isCheckingObjectives = false/);
+  assert.match(html, /if \(isCheckingObjectives\) return/);
   assert.match(html, /startObjectivePolling\(\)/);
   assert.match(html, /checked_at/);
   assert.match(html, /els\.checkObjectivesBtn\.addEventListener\('click', checkObjectives\)/);
+});
+
+test('frontend announces objective status updates to assistive technology', () => {
+  assert.match(html, /id="objectives-status" role="status" aria-live="polite" aria-atomic="true"/);
+  assert.match(html, /id="complete-banner" role="status" aria-live="polite" aria-atomic="true"/);
 });
 
 test('frontend ends stale sessions before starting a different scenario', () => {

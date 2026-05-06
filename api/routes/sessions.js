@@ -165,7 +165,7 @@ async function startSession(userId, scenarioId) {
 // GET /api/session
 router.get('/', jwtMiddleware, (req, res) => {
   const session = sessionStore.getByUser(req.user.userId);
-  if (!session) return res.status(404).json({ status: 'none' });
+  if (!session) return res.json({ status: 'none' });
   res.json(sessionPayload(session));
 });
 

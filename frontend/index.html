@@ -496,8 +496,8 @@
                   <button class="objectives-check-btn" id="check-objectives-btn" type="button">Check</button>
                 </div>
                 <ul class="objective-list" id="objective-list"></ul>
-                <div class="objectives-status" id="objectives-status">Not checked yet.</div>
-                <div class="complete-banner hidden" id="complete-banner">
+                <div class="objectives-status" id="objectives-status" role="status" aria-live="polite" aria-atomic="true">Not checked yet.</div>
+                <div class="complete-banner hidden" id="complete-banner" role="status" aria-live="polite" aria-atomic="true">
                   <strong>Scenario complete!</strong>
                   <button id="leave-lab-btn" type="button">Leave lab</button>
                 </div>
@@ -708,6 +708,7 @@
 
     // --- Objectives ---
     let objectiveInterval = null;
+    let isCheckingObjectives = false;
 
     function stopObjectivePolling() {
       if (objectiveInterval) { clearInterval(objectiveInterval); objectiveInterval = null; }
@@ -745,7 +746,9 @@
     }
 
     async function checkObjectives(options = {}) {
+      if (isCheckingObjectives) return;
       const silent = options.silent === true;
+      isCheckingObjectives = true;
       if (!silent) {
         els.checkObjectivesBtn.disabled = true;
         els.checkObjectivesBtn.textContent = 'Checking...';
@@ -756,6 +759,7 @@
       } catch (err) {
         if (!silent) els.labMessage.textContent = err.message;
       } finally {
+        isCheckingObjectives = false;
         if (!silent) {
           els.checkObjectivesBtn.disabled = false;
           els.checkObjectivesBtn.textContent = 'Check';

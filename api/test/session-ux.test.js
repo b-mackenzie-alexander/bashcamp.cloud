@@ -21,15 +21,20 @@ function loadFreshApp() {
 function configureTestEnv(prefix) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
   const seedPath = path.join(dir, 'users.json');
+  const scenariosPath = path.join(dir, 'scenarios');
   fs.writeFileSync(seedPath, JSON.stringify({
     users: [
       { username: 'student01', password_hash: bcrypt.hashSync('linux-plus', 10) },
     ],
   }));
+  fs.mkdirSync(path.join(scenariosPath, 'privilege-escalation-01'), { recursive: true });
+  fs.writeFileSync(path.join(scenariosPath, 'privilege-escalation-01', 'check.sh'), '#!/bin/bash\nexit 0\n');
+  fs.mkdirSync(path.join(scenariosPath, 'sandbox-ubuntu'), { recursive: true });
 
   process.env.JWT_SECRET = 'test-secret';
   process.env.USERS_FILE = seedPath;
   process.env.DATABASE_PATH = path.join(dir, 'bashcamp.sqlite');
+  process.env.SCENARIOS_PATH = scenariosPath;
 }
 
 function token() {
@@ -95,6 +100,21 @@ test('session responses expose canonical elapsed timing for active labs', async 
     assert.ok(reconnect.body.elapsed_seconds >= 120);
     assert.equal(current.body.scenario_id, 'privilege-escalation-01');
     assert.equal(reconnect.body.scenario_id, 'privilege-escalation-01');
+  } finally {
+    server.close();
+  }
+});
+
+test('session status returns none without treating absence as an error', async () => {
+  configureTestEnv('bashcamp-session-none-');
+  const app = loadFreshApp();
+
+  const server = app.listen(0);
+  try {
+    const current = await request(server, '/api/session');
+
+    assert.equal(current.statusCode, 200);
+    assert.deepEqual(current.body, { status: 'none' });
   } finally {
     server.close();
   }
