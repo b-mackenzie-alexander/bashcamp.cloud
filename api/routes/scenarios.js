@@ -46,6 +46,12 @@ router.get('/', jwtMiddleware, (_req, res) => {
     }
   }
 
+  scenarios.sort((a, b) => {
+    const aIsSandbox = a.type === 'sandbox' ? 0 : 1;
+    const bIsSandbox = b.type === 'sandbox' ? 0 : 1;
+    if (aIsSandbox !== bIsSandbox) return aIsSandbox - bIsSandbox;
+    return a.id.localeCompare(b.id);
+  });
   res.json(scenarios);
 });
 

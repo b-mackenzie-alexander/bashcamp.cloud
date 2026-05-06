@@ -6,6 +6,22 @@
 
 ---
 
+## Your context
+
+You are **sr_sysadmin**, the senior sysadmin on duty. kgarcia submitted a helpdesk ticket at
+07:52 — she cannot run any sudo commands and needs to restart an application deployment.
+You have been paged to resolve it.
+
+**Your credentials for this server:**
+
+| Account | Password | Role |
+|---|---|---|
+| sr_sysadmin | BashcampAdmin1! | You — senior sysadmin |
+| kgarcia | linux+practice | Affected user |
+| jdeng | changeme | Secondary user (not affected) |
+
+---
+
 ## What the user reported
 
 > Hi, I can't run any sudo commands. Every time I try I get an error that says
@@ -17,19 +33,21 @@
 
 ## Your objective
 
-Restore sudo access for `kgarcia` without logging in directly as root. The sudoers
-configuration must be valid when you are done.
+Repair `/etc/sudoers` so that `kgarcia` can use sudo again. You must do this without
+logging in directly as root. Verify the fix by confirming kgarcia's sudo access works
+after the repair.
 
 ---
 
 ## Hints
 
-- A parse error in `/etc/sudoers` prevents `sudo` from running at all — even for
-  users who should have access. The file must be repaired before any sudo command
-  will succeed.
+- A parse error in `/etc/sudoers` prevents `sudo` from running at all — including for
+  you. Even as sr_sysadmin, `sudo` will fail until the file is repaired.
 - There is a standard tool for safely editing the sudoers file that validates syntax
-  before writing changes. There is also a way to invoke it without sudo when sudo
-  itself is broken.
+  before writing changes. There is also a way to invoke it that bypasses sudo entirely,
+  using PolicyKit authentication instead. Look for it.
+- After fixing sudoers, use `su - kgarcia` (password in the credentials table above)
+  and confirm her sudo access is restored.
 
 ---
 

@@ -1,0 +1,14 @@
+{
+  "id": "inventory-service-01",
+  "type": "scenario",
+  "starting_user": "sr_sysadmin",
+  "title": "Inventory Sync Service Down",
+  "distro": "rocky-9",
+  "difficulty": "intermediate",
+  "duration_minutes": 35,
+  "timed": false,
+  "dynamic": false,
+  "objectives": ["1.1", "2.2", "4.1", "5.3"],
+  "requires_cap_sys_admin": true,
+  "description": "A systemd service cannot start because its runtime configuration is not where the unit expects it."
+}

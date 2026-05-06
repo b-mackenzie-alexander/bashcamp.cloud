@@ -158,12 +158,13 @@ DISTRO=ubuntu-22.04  # or rocky-9
 docker run -d --name test-scenario \
   --tmpfs /run --tmpfs /run/lock \
   --cgroupns=host \
-  -v /sys/fs/cgroup:/sys/fs/cgroup:ro \
+  -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
   --cap-drop ALL \
   --cap-add CHOWN --cap-add DAC_OVERRIDE --cap-add FOWNER \
   --cap-add KILL --cap-add SETUID --cap-add SETGID --cap-add SYS_ADMIN \
+  --cap-add AUDIT_WRITE \
   --security-opt no-new-privileges:false \
-  bashcamp/${DISTRO}-base /sbin/init
+  bashcamp/${DISTRO}-base
 
 docker cp scenarios/${SCENARIO}/provision.sh test-scenario:/tmp/provision.sh
 docker exec test-scenario bash /tmp/provision.sh
@@ -175,6 +176,12 @@ docker exec -it test-scenario /bin/bash
 # Clean up:
 docker rm -f test-scenario
 ```
+
+The base images already define systemd as their entrypoint. Do not append
+`/sbin/init` to the local `docker run` command; Docker will pass it as an argument
+to systemd and the container can exit immediately. The cgroup bind must be `rw`
+to match the API runtime path and allow systemd to manage its cgroup slice on
+cgroup v2 hosts.
 
 **Validate your meta.json:**
 ```bash

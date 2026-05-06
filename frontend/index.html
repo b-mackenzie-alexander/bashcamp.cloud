@@ -277,6 +277,139 @@
       display: none !important;
     }
 
+    /* Sandbox card */
+    .scenario-card.sandbox {
+      border-left: 3px solid var(--accent);
+    }
+
+    .sandbox-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    /* Section headings inside scenario list */
+    .scenario-section-heading {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--muted);
+      margin: 1rem 0 0.4rem;
+      grid-column: 1 / -1;
+    }
+
+    .scenario-section-heading:first-child {
+      margin-top: 0;
+    }
+
+    /* Timer in lab toolbar */
+    .lab-timer {
+      font-variant-numeric: tabular-nums;
+      font-size: 0.88rem;
+      padding: 0.3rem 0.65rem;
+      border-radius: 4px;
+      background: #e8e1d3;
+      color: var(--ink);
+    }
+
+    /* Objectives panel */
+    .objectives {
+      margin-top: 1.5rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--line);
+    }
+
+    .objectives-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+    }
+
+    .objectives h3 {
+      margin: 0;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--muted);
+    }
+
+    .objectives-check-btn {
+      padding: 0.35rem 0.7rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .objective-list {
+      list-style: none;
+      margin: 0 0 0.75rem;
+      padding: 0;
+      display: grid;
+      gap: 0.5rem;
+    }
+
+    .objectives-status {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+
+    .objective-item {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-size: 0.88rem;
+    }
+
+    .objective-icon {
+      flex-shrink: 0;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      color: var(--muted);
+    }
+
+    .objective-item.pass .objective-icon {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .objective-item.fail .objective-icon {
+      background: var(--danger);
+      color: #fff;
+    }
+
+    /* Completion banner */
+    .complete-banner {
+      margin-top: 1rem;
+      padding: 0.75rem 1rem;
+      background: #e8f5e9;
+      border: 1px solid #81c784;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+
+    .complete-banner strong {
+      color: #2e7d32;
+      font-size: 0.95rem;
+    }
+
+    .complete-banner button {
+      flex-shrink: 0;
+      padding: 0.5rem 0.9rem;
+      font-size: 0.85rem;
+    }
+
     @media (max-width: 860px) {
       header,
       .toolbar {
@@ -346,7 +479,8 @@
             <strong id="lab-title">Lab</strong>
             <div class="status" id="lab-meta"></div>
           </div>
-          <div>
+          <div style="display:flex;align-items:center;gap:0.75rem;">
+            <span id="lab-timer" class="lab-timer hidden"></span>
             <button class="secondary" id="back-button" type="button">Scenarios</button>
             <button class="danger" id="reset-button" type="button">Reset</button>
           </div>
@@ -354,7 +488,21 @@
         <div class="message" id="lab-message" role="status"></div>
         <div class="lab-grid">
           <article class="brief">
-            <div class="brief-content" id="scenario-readme"></div>
+            <div class="brief-content">
+              <div id="scenario-readme"></div>
+              <div class="objectives hidden" id="objectives-panel">
+                <div class="objectives-header">
+                  <h3>Objectives</h3>
+                  <button class="objectives-check-btn" id="check-objectives-btn" type="button">Check</button>
+                </div>
+                <ul class="objective-list" id="objective-list"></ul>
+                <div class="objectives-status" id="objectives-status" role="status" aria-live="polite" aria-atomic="true">Not checked yet.</div>
+                <div class="complete-banner hidden" id="complete-banner" role="status" aria-live="polite" aria-atomic="true">
+                  <strong>Scenario complete!</strong>
+                  <button id="leave-lab-btn" type="button">Leave lab</button>
+                </div>
+              </div>
+            </div>
           </article>
           <section class="terminal-panel" aria-label="Terminal">
             <div class="terminal-bar">
@@ -394,7 +542,14 @@
       labTitle: document.getElementById('lab-title'),
       labMeta: document.getElementById('lab-meta'),
       labMessage: document.getElementById('lab-message'),
+      labTimer: document.getElementById('lab-timer'),
       readme: document.getElementById('scenario-readme'),
+      objectivesPanel: document.getElementById('objectives-panel'),
+      objectiveList: document.getElementById('objective-list'),
+      objectivesStatus: document.getElementById('objectives-status'),
+      checkObjectivesBtn: document.getElementById('check-objectives-btn'),
+      completeBanner: document.getElementById('complete-banner'),
+      leaveLabBtn: document.getElementById('leave-lab-btn'),
       terminalFrame: document.getElementById('terminal-frame'),
       terminalUrl: document.getElementById('terminal-url'),
     };
@@ -451,36 +606,65 @@
       return state.scenarios.find(scenario => scenario.id === id) || null;
     }
 
+    function makeEl(tag, attrs = {}, ...children) {
+      const el = document.createElement(tag);
+      for (const [k, v] of Object.entries(attrs)) {
+        if (k === 'className') el.className = v;
+        else if (k === 'textContent') el.textContent = v;
+        else if (k === 'type') el.type = v;
+      }
+      el.append(...children);
+      return el;
+    }
+
+    function buildScenarioCard(scenario) {
+      const isSandbox = scenario.type === 'sandbox';
+      const card = makeEl('article', { className: isSandbox ? 'scenario-card sandbox' : 'scenario-card' });
+
+      if (isSandbox) {
+        card.append(makeEl('div', { className: 'sandbox-label', textContent: 'Practice environment' }));
+      }
+
+      const title = makeEl('h2', { textContent: scenario.title });
+      const description = makeEl('p', { textContent: scenario.description });
+      card.append(makeEl('div', {}, title, description));
+
+      const metaEl = makeEl('div', { className: 'meta' });
+      const pillValues = [scenario.distro];
+      if (!isSandbox) {
+        pillValues.push(scenario.difficulty);
+        if (scenario.duration_minutes) pillValues.push(`${scenario.duration_minutes} min`);
+      }
+      for (const value of pillValues) {
+        metaEl.append(makeEl('span', { className: 'pill', textContent: value }));
+      }
+      card.append(metaEl);
+
+      const btn = makeEl('button', { type: 'button', textContent: isSandbox ? 'Open sandbox' : 'Start lab' });
+      btn.addEventListener('click', () => startScenario(scenario.id));
+      card.append(btn);
+
+      return card;
+    }
+
+    function makeSectionHeading(text) {
+      return makeEl('div', { className: 'scenario-section-heading', textContent: text });
+    }
+
     async function loadScenarios() {
       state.scenarios = await api('/api/scenarios');
-      els.scenarioList.innerHTML = '';
-      for (const scenario of state.scenarios) {
-        const card = document.createElement('article');
-        card.className = 'scenario-card';
+      els.scenarioList.replaceChildren();
 
-        const summary = document.createElement('div');
-        const title = document.createElement('h2');
-        title.textContent = scenario.title;
-        const description = document.createElement('p');
-        description.textContent = scenario.description;
-        summary.append(title, description);
+      const sandboxes = state.scenarios.filter(s => s.type === 'sandbox');
+      const scenarios = state.scenarios.filter(s => s.type !== 'sandbox');
 
-        const meta = document.createElement('div');
-        meta.className = 'meta';
-        for (const value of [scenario.distro, scenario.difficulty, `${scenario.duration_minutes} min`]) {
-          const pill = document.createElement('span');
-          pill.className = 'pill';
-          pill.textContent = value;
-          meta.append(pill);
-        }
-
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.textContent = 'Start lab';
-        button.addEventListener('click', () => startScenario(scenario.id));
-
-        card.append(summary, meta, button);
-        els.scenarioList.append(card);
+      if (sandboxes.length > 0) {
+        els.scenarioList.append(makeSectionHeading('Practice environments'));
+        for (const s of sandboxes) els.scenarioList.append(buildScenarioCard(s));
+      }
+      if (scenarios.length > 0) {
+        els.scenarioList.append(makeSectionHeading('Guided scenarios'));
+        for (const s of scenarios) els.scenarioList.append(buildScenarioCard(s));
       }
     }
 
@@ -489,19 +673,160 @@
       els.readme.innerHTML = DOMPurify.sanitize(marked.parse(result.markdown));
     }
 
+    // --- Timer ---
+    let timerInterval = null;
+
+    function stopTimer() {
+      if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+      els.labTimer.classList.add('hidden');
+      els.labTimer.className = 'lab-timer hidden';
+    }
+
+    function formatElapsed(seconds) {
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = seconds % 60;
+      if (h > 0) {
+        return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+      }
+      return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+
+    function startElapsedTimer(session) {
+      stopTimer();
+      if (!session?.started_at) return;
+      let elapsed = Math.max(0, Math.floor(Number(session.elapsed_seconds) || 0));
+      els.labTimer.classList.remove('hidden');
+
+      function tick() {
+        els.labTimer.textContent = `Elapsed ${formatElapsed(elapsed)}`;
+        els.labTimer.className = 'lab-timer';
+        elapsed += 1;
+      }
+      tick();
+      timerInterval = setInterval(tick, 1000);
+    }
+
+    // --- Objectives ---
+    let objectiveInterval = null;
+    let isCheckingObjectives = false;
+    let objectivePollId = 0;
+
+    function stopObjectivePolling() {
+      if (objectiveInterval) { clearInterval(objectiveInterval); objectiveInterval = null; }
+      objectivePollId += 1;
+    }
+
+    function resetObjectivesPanel() {
+      stopObjectivePolling();
+      els.objectivesPanel.classList.add('hidden');
+      els.objectiveList.replaceChildren();
+      els.objectivesStatus.textContent = 'Not checked yet.';
+      els.completeBanner.classList.add('hidden');
+    }
+
+    function renderObjectives(payload) {
+      const results = Array.isArray(payload) ? payload : payload?.objectives;
+      if (!results || results.length === 0) {
+        els.objectivesPanel.classList.add('hidden');
+        return;
+      }
+      els.objectivesPanel.classList.remove('hidden');
+      els.objectiveList.replaceChildren();
+      for (const obj of results) {
+        const icon = makeEl('span', { className: 'objective-icon', textContent: obj.passed ? '✓' : '✗' });
+        const label = makeEl('span', { textContent: obj.label });
+        const item = makeEl('li', { className: `objective-item ${obj.passed ? 'pass' : 'fail'}` }, icon, label);
+        els.objectiveList.append(item);
+      }
+      const checkedAt = payload?.checked_at ? new Date(payload.checked_at) : null;
+      els.objectivesStatus.textContent = checkedAt
+        ? `Last checked ${checkedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })}`
+        : 'Checked just now.';
+      const allPassed = payload?.complete ?? results.every(r => r.passed);
+      if (allPassed) els.completeBanner.classList.remove('hidden');
+      else els.completeBanner.classList.add('hidden');
+    }
+
+    async function checkObjectives(options = {}) {
+      if (isCheckingObjectives) return;
+      const silent = options.silent === true;
+      const pollId = options.pollId ?? objectivePollId;
+      isCheckingObjectives = true;
+      if (!silent) {
+        els.checkObjectivesBtn.disabled = true;
+        els.checkObjectivesBtn.textContent = 'Checking...';
+      }
+      try {
+        const payload = await api('/api/session/check');
+        if (pollId !== objectivePollId) return;
+        renderObjectives(payload);
+      } catch (err) {
+        if (pollId !== objectivePollId) return;
+        if (!silent) els.labMessage.textContent = err.message;
+      } finally {
+        isCheckingObjectives = false;
+        if (pollId !== objectivePollId) return;
+        if (!silent) {
+          els.checkObjectivesBtn.disabled = false;
+          els.checkObjectivesBtn.textContent = 'Check';
+        }
+      }
+    }
+
+    function startObjectivePolling() {
+      stopObjectivePolling();
+      const pollId = objectivePollId;
+      checkObjectives({ silent: true, pollId });
+      objectiveInterval = setInterval(() => checkObjectives({ silent: true, pollId }), 30_000);
+    }
+
+    async function leaveLabAndReturn() {
+      stopTimer();
+      stopObjectivePolling();
+      resetObjectivesPanel();
+      els.terminalFrame.removeAttribute('src');
+      await api('/api/session/end', { method: 'POST' }).catch(() => {});
+      show('scenarios');
+    }
+
     async function showLab(session) {
       const scenarioId = session.scenario_id || state.currentScenario?.id;
       state.currentScenario = scenarioById(scenarioId) || state.currentScenario;
+
+      stopTimer();
+      resetObjectivesPanel();
+
       if (state.currentScenario) {
         els.labTitle.textContent = state.currentScenario.title;
         els.labMeta.textContent = `${state.currentScenario.distro} - ${state.currentScenario.difficulty}`;
         await loadReadme(state.currentScenario.id);
+        if (state.currentScenario.type !== 'sandbox') {
+          startElapsedTimer(session);
+        }
+        if (state.currentScenario.type !== 'sandbox') {
+          els.objectivesPanel.classList.remove('hidden');
+          startObjectivePolling();
+        }
       }
       els.terminalUrl.textContent = session.terminal_url;
       els.terminalFrame.src = session.terminal_url;
       els.labMessage.textContent = '';
       setStatus('Lab active');
       show('lab');
+      // After iframe loads, focus the xterm.js textarea so keyboard input works immediately.
+      // Same-origin (both on bashcamp.cloud) so contentDocument access is allowed.
+      els.terminalFrame.addEventListener('load', function focusTerminal() {
+        els.terminalFrame.removeEventListener('load', focusTerminal);
+        setTimeout(() => {
+          try {
+            const ta = els.terminalFrame.contentDocument?.querySelector('.xterm-helper-textarea');
+            if (ta) { ta.focus(); return; }
+            // Fallback: click the terminal screen element
+            els.terminalFrame.contentDocument?.querySelector('.xterm-screen')?.click();
+          } catch (_) {}
+        }, 500);
+      });
     }
 
     async function startScenario(scenarioId) {
@@ -517,7 +842,11 @@
         } catch (err) {
           if (err.status !== 409) throw err;
           els.scenarioMessage.textContent = 'Clearing previous session...';
-          session = await api('/api/session/reset', { method: 'POST' });
+          await api('/api/session/end', { method: 'POST' });
+          session = await api('/api/session/start', {
+            method: 'POST',
+            body: JSON.stringify({ scenario_id: scenarioId }),
+          });
         }
         await showLab({ ...session, scenario_id: scenarioId });
       } catch (err) {
@@ -545,6 +874,9 @@
     }
 
     async function resetSession() {
+      stopTimer();
+      stopObjectivePolling();
+      resetObjectivesPanel();
       els.labMessage.textContent = 'Resetting lab...';
       try {
         const reset = await api('/api/session/reset', { method: 'POST' });
@@ -603,18 +935,36 @@
       try {
         await api('/api/auth/logout', { method: 'POST' });
       } catch {}
+      stopTimer();
+      stopObjectivePolling();
       setToken(null);
       setStatus('Signed out');
       show('login');
     });
 
     els.backButton.addEventListener('click', async () => {
+      stopTimer();
+      stopObjectivePolling();
+      resetObjectivesPanel();
       els.terminalFrame.removeAttribute('src');
       await api('/api/session/end', { method: 'POST' }).catch(() => {});
       show('scenarios');
     });
 
+    els.checkObjectivesBtn.addEventListener('click', checkObjectives);
+
+    els.leaveLabBtn.addEventListener('click', leaveLabAndReturn);
+
     els.resetButton.addEventListener('click', resetSession);
+
+    // Re-focus the xterm terminal whenever the user clicks anywhere on the iframe
+    els.terminalFrame.addEventListener('mousedown', () => {
+      setTimeout(() => {
+        try {
+          els.terminalFrame.contentDocument?.querySelector('.xterm-helper-textarea')?.focus();
+        } catch (_) {}
+      }, 50);
+    });
 
     boot();
   </script>

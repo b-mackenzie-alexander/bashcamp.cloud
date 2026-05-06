@@ -30,19 +30,22 @@ container and affecting the host or another student's container.
 
 **Mitigations in place:**
 - Each container runs with capabilities dropped to the minimum required:
-  `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `KILL`, `SETUID`, `SETGID`, `SYS_ADMIN`
-  All other capabilities are dropped with `--cap-drop ALL`
+  `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `KILL`, `SETUID`, `SETGID`, `SYS_ADMIN`,
+  and `AUDIT_WRITE`. All other capabilities are dropped with `--cap-drop ALL`.
 - `--privileged` is never used unless a scenario explicitly requires it and
   documents the justification in `meta.json`. No current scenario requires it.
 - Each container has its own network namespace — no inter-container routing
 - Containers run on an isolated bridge network (`bashcamp-net`) that blocks
   traffic between user containers
-- All filesystem mounts into containers are read-only (`scenarios` volume)
+- Student containers do not mount the scenario repository. The API container
+  mounts scenarios read-only and copies only the required script into a lab
+  container.
 
-**Known accepted risk:** `SYS_ADMIN` capability is required for `sudo`, `su`,
-and user switching to work correctly inside containers. This is the core product
-requirement — without it, the platform cannot deliver its value. This is documented
-explicitly and is a conscious tradeoff, not an oversight. Post-MVP, user namespace
+**Known accepted risk:** `SYS_ADMIN` capability is required for `su`, user
+switching, and realistic administration flows inside containers. `AUDIT_WRITE`
+is included so `sudo` can send normal audit events without printing
+`Operation not permitted`; it does not grant audit configuration control. These
+are conscious product tradeoffs, not oversights. Post-MVP, user namespace
 remapping (`userns-remap`) will provide additional defense-in-depth.
 
 ### Credential exposure
@@ -103,7 +106,7 @@ on branch `fix/remediate-review-findings` before merging to `develop`.
 |---|---|
 | Scenario metadata and README Markdown could inject frontend HTML | Scenario cards now use DOM construction and `textContent`; README Markdown is sanitized with DOMPurify |
 | `marked` was loaded from an unpinned CDN without SRI | `marked@18.0.3` and `dompurify@3.4.2` are vendored locally under `frontend/vendor/` |
-| Required runtime config failed late | `api/lib/config.js` now fails fast when `JWT_SECRET` or `SCENARIOS_HOST_PATH` is missing or blank |
+| Required runtime config failed late | `api/lib/config.js` now fails fast when `JWT_SECRET` is missing or blank |
 | `dockerode` pulled a vulnerable `uuid` transitive dependency | `dockerode` was updated to `5.0.0`; `npm audit` and OSV report no dependency issues |
 
 Validation performed:
@@ -119,6 +122,25 @@ Validation performed:
   secrets; root-user warnings on lab base Dockerfiles remain an accepted product
   tradeoff for real Linux/systemd lab behavior
 - `caddy validate --config proxy/Caddyfile`: valid configuration
+
+---
+
+## 2026-05-05 MVP server-testing remediation
+
+The live MVP review identified three immersion/security issues: fresh labs could
+appear as root in stale sessions, containers exposed the scenario repository at
+`/scenarios`, and base-image/manual-page drift could surface minimized-system
+messages. This remediation removes the student-container scenario mount, copies
+objective checks into `/tmp` before execution, keeps ttyd launching as
+`sr_sysadmin`, and adds regression tests for those behaviors before the next
+server test push.
+
+Additional cleanup completed in the same pass:
+- Scenario switching now ends a stale session before starting the requested lab.
+- Sandbox metadata validation accepts `type: "sandbox"`, `difficulty: "open"`,
+  `duration_minutes: null`, and empty objectives.
+- `SCENARIOS_HOST_PATH` is no longer required because student containers no
+  longer mount host scenario directories.
 
 Security scan artifact:
 `/tmp/codex-security-scans/bashcamp_project/0aa34d2_20260502T123236/report.md`

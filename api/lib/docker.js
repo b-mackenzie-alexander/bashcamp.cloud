@@ -2,7 +2,6 @@
 
 const Docker = require('dockerode');
 const { spawn, execFileSync } = require('child_process');
-const config = require('./config');
 
 const docker = new Docker();
 
@@ -35,13 +34,12 @@ async function createContainer(sessionId, distro) {
     NanoCpus: 1_000_000_000,
     NetworkMode: 'bashcamp-net',
     CapDrop: ['ALL'],
-    CapAdd: ['CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'KILL', 'SETUID', 'SETGID', 'SYS_ADMIN'],
+    CapAdd: ['CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'KILL', 'SETUID', 'SETGID', 'SYS_ADMIN', 'AUDIT_WRITE'],
     SecurityOpt: ['no-new-privileges:false'],
     Tmpfs: { '/run': '', '/run/lock': '' },
     CgroupnsMode: 'host',
     Binds: [
       '/sys/fs/cgroup:/sys/fs/cgroup:rw',
-      `${config.scenariosHostPath}:/scenarios:ro`,
     ],
   };
 
@@ -73,16 +71,25 @@ function runProvision(containerName, provisionPath) {
 function spawnTtyd(port, sessionId, terminalSecret, onExit) {
   const proc = spawn('ttyd', [
     '--port', String(port),
+    '--writable',
     '--credential', `${sessionId}:${terminalSecret}`,
-    'docker', 'exec', '-it', `session-${sessionId}`, '/bin/bash',
+    'docker', 'exec', '-it', '--user', 'sr_sysadmin', `session-${sessionId}`, '/bin/bash', '-l',
   ], { detached: false });
   proc.on('error', err => console.error('ttyd spawn error (session %s): %s', sessionId, err.message));
   proc.on('exit', onExit);
   return proc.pid;
 }
 
+function runCheck(containerName, checkPath) {
+  execFileSync('docker', ['cp', checkPath, `${containerName}:/tmp/check.sh`]);
+  return execFileSync(
+    'docker', ['exec', '--user', 'root', containerName, 'bash', '/tmp/check.sh'],
+    { timeout: 10_000, encoding: 'utf8' }
+  );
+}
+
 function killTtyd(pid) {
   try { process.kill(pid, 'SIGTERM'); } catch (_) {}
 }
 
-module.exports = { createContainer, destroyContainer, runProvision, spawnTtyd, killTtyd };
+module.exports = { createContainer, destroyContainer, runProvision, runCheck, spawnTtyd, killTtyd };

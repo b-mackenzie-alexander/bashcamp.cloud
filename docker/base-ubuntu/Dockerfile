@@ -5,7 +5,13 @@ FROM ubuntu:22.04
 ENV DEBIAN_FRONTEND=noninteractive
 ENV container=docker
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Remove the dpkg config that strips man pages from the ubuntu:22.04 base image,
+# then reinstall pre-existing packages to restore their stripped pages before
+# installing our own. Without this, man ls, man tar, etc. return "no entry".
+RUN rm -f /etc/dpkg/dpkg.cfg.d/excludes \
+  && apt-get update \
+  && apt-get install -y --reinstall coreutils tar gzip grep findutils util-linux \
+  && apt-get install -y --no-install-recommends \
     # systemd and service infrastructure
     systemd \
     systemd-sysv \
@@ -21,11 +27,26 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     net-tools \
     iproute2 \
     man-db \
+    manpages \
+    manpages-posix \
     bash-completion \
     # user and privilege management
     sudo \
     passwd \
     policykit-1 \
+    # archiving and compression (Linux+ exam objectives)
+    tar \
+    cpio \
+    gzip \
+    bzip2 \
+    xz-utils \
+    zip \
+    unzip \
+    # access control and file management (Linux+ exam objectives)
+    acl \
+    at \
+    diffutils \
+    rsync \
     # additional realistic tooling
     procps \
     lsof \
@@ -33,6 +54,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     dnsutils \
     file \
     tree \
+  && if [ -x /usr/bin/man.REAL ]; then mv /usr/bin/man.REAL /usr/bin/man; fi \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
@@ -52,5 +74,9 @@ RUN systemctl mask \
     sys-kernel-config.mount \
     systemd-update-utmp.service \
     systemd-update-utmp-runlevel.service
+
+RUN useradd -m -s /bin/bash sr_sysadmin \
+  && echo "sr_sysadmin:BashcampAdmin1!" | chpasswd \
+  && usermod -aG sudo sr_sysadmin
 
 ENTRYPOINT ["/sbin/init"]

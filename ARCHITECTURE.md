@@ -143,8 +143,8 @@ on page load to determine whether to offer reconnect or start-fresh.
 ```
 
 - **Active:** ttyd process running, WebSocket connection open, container live.
-- **Disconnected:** ttyd exits (via `--once` after connection drops). Container
-  remains alive. Session is marked `disconnected` with a timestamp.
+- **Disconnected:** ttyd exits or is terminated. Container remains alive. Session
+  is marked `disconnected` with a timestamp.
 - **Reconnect window:** 15 minutes from disconnect. If the user hits
   `POST /api/session/reconnect` within this window, the API spawns a new ttyd
   process against the same live container and returns a new `terminal_url`.
@@ -153,10 +153,9 @@ on page load to determine whether to offer reconnect or start-fresh.
   state are destroyed.
 
 A background process polls session state every 60 seconds. Current MVP behavior
-tracks disconnect time by recording when ttyd exits (the `--once` flag causes ttyd
-to exit when the WebSocket connection closes). Exact terminal-input idle detection
-is deferred until the platform has a terminal activity tracker or WebSocket-aware
-proxy layer.
+tracks disconnect time by recording when ttyd exits. Exact terminal-input idle
+detection is deferred until the platform has a terminal activity tracker or
+WebSocket-aware proxy layer.
 
 **Post-MVP:** A store function — persisting container state to a snapshot and
 resuming it later — is architecturally feasible but out of scope for MVP. Sessions
@@ -224,24 +223,25 @@ docker run -d \
   --cap-add SETUID \
   --cap-add SETGID \
   --cap-add SYS_ADMIN \                 # required for su, sudo, user switching
+  --cap-add AUDIT_WRITE \               # lets sudo write audit events without noisy EPERM warnings
   --security-opt no-new-privileges:false \   # scenarios require SUID/privilege escalation
   --tmpfs /run \                        # systemd requires a writable /run at startup
   --tmpfs /run/lock \
   --cgroupns=host \                     # allow systemd cgroup management on cgroup v2 hosts
-  -v /sys/fs/cgroup:/sys/fs/cgroup:ro \             # systemd reads cgroup state from the host hierarchy
-  -v ${SCENARIOS_HOST_PATH}:/scenarios:ro \         # provision scripts — must be the HOST-side absolute path
-  bashcamp/ubuntu-22.04-base \
-  /sbin/init                                        # systemd as PID 1 — required for services to work
+  -v /sys/fs/cgroup:/sys/fs/cgroup:rw \             # systemd needs writable cgroup access on cgroup v2 hosts
+  bashcamp/ubuntu-22.04-base                        # systemd entrypoint is defined by the base image
 ```
 
-**`SCENARIOS_HOST_PATH` — why it matters:**
-The API runs inside a Docker container (via compose). When it calls `docker run`, it
-is talking to the host Docker daemon through the socket. Docker interprets volume
-mount paths relative to the **host** filesystem, not the API container's filesystem.
-The API container sees its scenarios at `/scenarios`, but that path means nothing to
-the host daemon. `SCENARIOS_HOST_PATH` is set in `docker-compose.yml` to the
-absolute host path (e.g., `/opt/bashcamp/scenarios`) so the API passes a valid host
-path when spawning user containers.
+Do not append `/sbin/init` in local test commands. The base images already set
+systemd as the entrypoint; passing `/sbin/init` after the image name turns it into
+an argument to systemd rather than the process to execute, which can cause an
+immediate exit and a false-negative scenario test.
+
+Student lab containers do not mount the scenario repository. The API container
+mounts `../scenarios:/scenarios:ro` for metadata, README, provision, and objective
+check files, then copies the specific script it needs into `/tmp` inside the lab
+container before execution. This prevents students from listing scenario packages
+or platform internals from the terminal.
 
 Rocky Linux containers use `/usr/lib/systemd/systemd` rather than `/sbin/init` as
 the entrypoint — the symlink target differs between distros. The API selects the
@@ -256,17 +256,19 @@ flags are required for systemd to initialize inside a container.
 escalation via SUID binaries is permitted). The flag is included explicitly to document
 intent: containers are allowed to escalate privileges because scenarios require it.
 
-After container start, `provision.sh` runs inside it via the mounted scenarios volume:
+After container start, `provision.sh` is copied from the API container into the
+lab container and executed as root:
 ```bash
-docker exec session-${SESSION_ID} bash /scenarios/${SCENARIO_ID}/provision.sh
+docker cp /scenarios/${SCENARIO_ID}/provision.sh session-${SESSION_ID}:/tmp/provision.sh
+docker exec session-${SESSION_ID} bash /tmp/provision.sh
 ```
 
 **ttyd attachment (host-side):**
 ```bash
 ttyd --port ${ASSIGNED_PORT} \
-     --once \                                              # one WebSocket connection per ttyd instance
+     --writable \                                          # allow keyboard input in the browser terminal
      --credential ${SESSION_ID}:${TERMINAL_SECRET} \      # HTTP Basic Auth — see note below
-     docker exec -it session-${SESSION_ID} /bin/bash
+     docker exec -it --user sr_sysadmin session-${SESSION_ID} /bin/bash -l
 ```
 
 Caddy proxies `/t/${ASSIGNED_PORT}/` to `localhost:${ASSIGNED_PORT}`.
@@ -447,7 +449,6 @@ services:
       - SCENARIOS_PATH=/scenarios
       - SESSION_TIMEOUT_MINUTES=30
       - RECONNECT_WINDOW_MINUTES=15
-      - SCENARIOS_HOST_PATH=/opt/bashcamp/scenarios  # absolute path on the host, not inside this container
 ```
 
 The frontend is served directly by Caddy's built-in `file_server` from

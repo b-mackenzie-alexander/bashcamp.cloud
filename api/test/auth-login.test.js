@@ -65,7 +65,6 @@ test('login authenticates imported SQLite users and rejects disabled users', asy
   }));
 
   process.env.JWT_SECRET = 'test-secret';
-  process.env.SCENARIOS_HOST_PATH = path.join(__dirname, '../../scenarios');
   process.env.USERS_FILE = seedPath;
   process.env.DATABASE_PATH = dbPath;
 

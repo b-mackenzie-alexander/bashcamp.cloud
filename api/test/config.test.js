@@ -21,31 +21,22 @@ function requireConfig(env) {
 }
 
 test('config fails fast when JWT_SECRET is missing', () => {
-  const result = requireConfig({ SCENARIOS_HOST_PATH: path.join(repoRoot, 'scenarios') });
+  const result = requireConfig({});
 
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /JWT_SECRET is required/);
 });
 
-test('config fails fast when SCENARIOS_HOST_PATH is missing', () => {
-  const result = requireConfig({ JWT_SECRET: 'test-secret' });
-
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /SCENARIOS_HOST_PATH is required/);
-});
-
 test('config exports validated required settings', () => {
-  const scenariosHostPath = path.join(repoRoot, 'scenarios');
   const databasePath = path.join(repoRoot, 'data/test.sqlite');
   const result = spawnSync(
     process.execPath,
-    ['-e', `const config = require(${JSON.stringify(configModule)}); process.stdout.write(config.jwtSecret + '\\n' + config.scenariosHostPath + '\\n' + config.databasePath);`],
+    ['-e', `const config = require(${JSON.stringify(configModule)}); process.stdout.write(config.jwtSecret + '\\n' + config.databasePath);`],
     {
       cwd: repoRoot,
       env: {
         PATH: process.env.PATH,
         JWT_SECRET: 'test-secret',
-        SCENARIOS_HOST_PATH: scenariosHostPath,
         DATABASE_PATH: databasePath,
         USERS_FILE: require.resolve('./fixtures/users.json'),
       },
@@ -54,11 +45,10 @@ test('config exports validated required settings', () => {
   );
 
   assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.stdout, `test-secret\n${scenariosHostPath}\n${databasePath}`);
+  assert.equal(result.stdout, `test-secret\n${databasePath}`);
 });
 
 test('config defaults DATABASE_PATH to the local data directory', () => {
-  const scenariosHostPath = path.join(repoRoot, 'scenarios');
   const result = spawnSync(
     process.execPath,
     ['-e', `const config = require(${JSON.stringify(configModule)}); process.stdout.write(config.databasePath);`],
@@ -67,7 +57,6 @@ test('config defaults DATABASE_PATH to the local data directory', () => {
       env: {
         PATH: process.env.PATH,
         JWT_SECRET: 'test-secret',
-        SCENARIOS_HOST_PATH: scenariosHostPath,
         USERS_FILE: require.resolve('./fixtures/users.json'),
       },
       encoding: 'utf8',

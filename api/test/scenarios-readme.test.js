@@ -6,7 +6,6 @@ const test = require('node:test');
 const jwt = require('jsonwebtoken');
 
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret';
-process.env.SCENARIOS_HOST_PATH = process.env.SCENARIOS_HOST_PATH || require('node:path').join(__dirname, '../../scenarios');
 process.env.USERS_FILE = require.resolve('./fixtures/users.json');
 
 const app = require('../index');

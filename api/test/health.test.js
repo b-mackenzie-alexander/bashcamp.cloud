@@ -49,7 +49,6 @@ test('health endpoint reports database readiness without exposing secrets', asyn
   }));
 
   process.env.JWT_SECRET = 'test-secret';
-  process.env.SCENARIOS_HOST_PATH = path.join(__dirname, '../../scenarios');
   process.env.USERS_FILE = seedPath;
   process.env.DATABASE_PATH = path.join(dir, 'bashcamp.sqlite');
 

@@ -3,8 +3,13 @@ FROM rockylinux:9
 # Tell systemd it is running inside a container
 ENV container=docker
 
+# Remove the dnf "nodocs" flag from the rockylinux:9 base image, then reinstall
+# pre-existing packages to restore their stripped man pages. Without this,
+# man ls, man tar, etc. return "no entry".
 # --allowerasing replaces curl-minimal (pre-installed in rockylinux:9 base) with full curl
-RUN dnf install -y --allowerasing \
+RUN sed -i '/^tsflags/d' /etc/dnf/dnf.conf \
+  && dnf reinstall -y coreutils tar gzip grep findutils util-linux \
+  && dnf install -y --allowerasing \
     # systemd and service infrastructure
     systemd \
     dbus \
@@ -19,11 +24,26 @@ RUN dnf install -y --allowerasing \
     net-tools \
     iproute \
     man-db \
+    man-pages \
+    coreutils-common \
     bash-completion \
     # user and privilege management
     sudo \
     shadow-utils \
     polkit \
+    # archiving and compression (Linux+ exam objectives)
+    tar \
+    cpio \
+    gzip \
+    bzip2 \
+    xz \
+    zip \
+    unzip \
+    # access control and file management (Linux+ exam objectives)
+    acl \
+    at \
+    diffutils \
+    rsync \
     # additional realistic tooling
     procps-ng \
     lsof \
@@ -49,4 +69,8 @@ RUN systemctl mask \
     sys-kernel-config.mount
 
 # Rocky uses the full path — /sbin/init is not guaranteed to be a symlink here
+RUN useradd -m -s /bin/bash sr_sysadmin \
+  && echo "sr_sysadmin:BashcampAdmin1!" | chpasswd \
+  && usermod -aG wheel sr_sysadmin
+
 ENTRYPOINT ["/usr/lib/systemd/systemd"]
