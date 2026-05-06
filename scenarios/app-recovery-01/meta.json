@@ -1,0 +1,14 @@
+{
+  "id": "app-recovery-01",
+  "type": "scenario",
+  "starting_user": "sr_sysadmin",
+  "title": "Application Worker Recovery",
+  "distro": "ubuntu-22.04",
+  "difficulty": "advanced",
+  "duration_minutes": 50,
+  "timed": false,
+  "dynamic": false,
+  "objectives": ["1.1", "1.5", "2.2", "3.3", "5.3"],
+  "requires_cap_sys_admin": true,
+  "description": "A deployment worker is offline because the active release path and runtime permissions are both wrong."
+}

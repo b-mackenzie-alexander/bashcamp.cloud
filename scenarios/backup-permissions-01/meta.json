@@ -1,0 +1,13 @@
+{
+  "id": "backup-permissions-01",
+  "type": "scenario",
+  "starting_user": "sr_sysadmin",
+  "title": "Backup Job Permission Failure",
+  "distro": "ubuntu-22.04",
+  "difficulty": "beginner",
+  "duration_minutes": 25,
+  "timed": false,
+  "dynamic": false,
+  "objectives": ["1.2", "2.1", "3.3", "5.1"],
+  "description": "A nightly backup script exists, but the service account cannot write archives to the backup directory."
+}
