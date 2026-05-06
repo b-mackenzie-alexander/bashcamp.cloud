@@ -30,6 +30,13 @@ test('student containers do not expose the host scenario repository', () => {
   assert.doesNotMatch(dockerLib, /\/scenarios\/\$\{scenarioId\}\/check\.sh/);
 });
 
+test('student containers allow sudo to write audit events without broad privileges', () => {
+  const dockerLib = read('api/lib/docker.js');
+
+  assert.match(dockerLib, /'AUDIT_WRITE'/);
+  assert.doesNotMatch(dockerLib, /'AUDIT_CONTROL'/);
+});
+
 test('ttyd launches writable terminals as the student admin user', () => {
   const dockerLib = read('api/lib/docker.js');
 

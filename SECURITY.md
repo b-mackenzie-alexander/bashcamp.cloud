@@ -30,19 +30,22 @@ container and affecting the host or another student's container.
 
 **Mitigations in place:**
 - Each container runs with capabilities dropped to the minimum required:
-  `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `KILL`, `SETUID`, `SETGID`, `SYS_ADMIN`
-  All other capabilities are dropped with `--cap-drop ALL`
+  `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `KILL`, `SETUID`, `SETGID`, `SYS_ADMIN`,
+  and `AUDIT_WRITE`. All other capabilities are dropped with `--cap-drop ALL`.
 - `--privileged` is never used unless a scenario explicitly requires it and
   documents the justification in `meta.json`. No current scenario requires it.
 - Each container has its own network namespace — no inter-container routing
 - Containers run on an isolated bridge network (`bashcamp-net`) that blocks
   traffic between user containers
-- All filesystem mounts into containers are read-only (`scenarios` volume)
+- Student containers do not mount the scenario repository. The API container
+  mounts scenarios read-only and copies only the required script into a lab
+  container.
 
-**Known accepted risk:** `SYS_ADMIN` capability is required for `sudo`, `su`,
-and user switching to work correctly inside containers. This is the core product
-requirement — without it, the platform cannot deliver its value. This is documented
-explicitly and is a conscious tradeoff, not an oversight. Post-MVP, user namespace
+**Known accepted risk:** `SYS_ADMIN` capability is required for `su`, user
+switching, and realistic administration flows inside containers. `AUDIT_WRITE`
+is included so `sudo` can send normal audit events without printing
+`Operation not permitted`; it does not grant audit configuration control. These
+are conscious product tradeoffs, not oversights. Post-MVP, user namespace
 remapping (`userns-remap`) will provide additional defense-in-depth.
 
 ### Credential exposure

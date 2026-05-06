@@ -223,6 +223,7 @@ docker run -d \
   --cap-add SETUID \
   --cap-add SETGID \
   --cap-add SYS_ADMIN \                 # required for su, sudo, user switching
+  --cap-add AUDIT_WRITE \               # lets sudo write audit events without noisy EPERM warnings
   --security-opt no-new-privileges:false \   # scenarios require SUID/privilege escalation
   --tmpfs /run \                        # systemd requires a writable /run at startup
   --tmpfs /run/lock \

@@ -34,7 +34,7 @@ async function createContainer(sessionId, distro) {
     NanoCpus: 1_000_000_000,
     NetworkMode: 'bashcamp-net',
     CapDrop: ['ALL'],
-    CapAdd: ['CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'KILL', 'SETUID', 'SETGID', 'SYS_ADMIN'],
+    CapAdd: ['CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'KILL', 'SETUID', 'SETGID', 'SYS_ADMIN', 'AUDIT_WRITE'],
     SecurityOpt: ['no-new-privileges:false'],
     Tmpfs: { '/run': '', '/run/lock': '' },
     CgroupnsMode: 'host',
