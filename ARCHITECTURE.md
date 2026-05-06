@@ -228,10 +228,14 @@ docker run -d \
   --tmpfs /run \                        # systemd requires a writable /run at startup
   --tmpfs /run/lock \
   --cgroupns=host \                     # allow systemd cgroup management on cgroup v2 hosts
-  -v /sys/fs/cgroup:/sys/fs/cgroup:ro \             # systemd reads cgroup state from the host hierarchy
-  bashcamp/ubuntu-22.04-base \
-  /sbin/init                                        # systemd as PID 1 — required for services to work
+  -v /sys/fs/cgroup:/sys/fs/cgroup:rw \             # systemd needs writable cgroup access on cgroup v2 hosts
+  bashcamp/ubuntu-22.04-base                        # systemd entrypoint is defined by the base image
 ```
+
+Do not append `/sbin/init` in local test commands. The base images already set
+systemd as the entrypoint; passing `/sbin/init` after the image name turns it into
+an argument to systemd rather than the process to execute, which can cause an
+immediate exit and a false-negative scenario test.
 
 Student lab containers do not mount the scenario repository. The API container
 mounts `../scenarios:/scenarios:ro` for metadata, README, provision, and objective

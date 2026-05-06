@@ -18,11 +18,17 @@ function validate(...files) {
 test('metadata validator accepts guided scenarios and open sandboxes', () => {
   const output = validate(
     'scenarios/privilege-escalation-01/meta.json',
+    'scenarios/backup-permissions-01/meta.json',
+    'scenarios/inventory-service-01/meta.json',
+    'scenarios/app-recovery-01/meta.json',
     'scenarios/sandbox-ubuntu/meta.json',
     'scenarios/sandbox-rocky/meta.json'
   );
 
   assert.match(output, /privilege-escalation-01\/meta\.json: OK/);
+  assert.match(output, /backup-permissions-01\/meta\.json: OK/);
+  assert.match(output, /inventory-service-01\/meta\.json: OK/);
+  assert.match(output, /app-recovery-01\/meta\.json: OK/);
   assert.match(output, /sandbox-ubuntu\/meta\.json: OK/);
   assert.match(output, /sandbox-rocky\/meta\.json: OK/);
 });
