@@ -41,6 +41,19 @@ test('frontend calls the milestone API endpoints', () => {
   assert.match(html, /\/api\/scenarios\/\$\{encodeURIComponent\(scenarioId\)\}\/readme/);
 });
 
+test('frontend renders elapsed lab time from backend session start', () => {
+  assert.match(html, /function startElapsedTimer\(startedAt\)/);
+  assert.match(html, /session\.started_at/);
+  assert.doesNotMatch(html, /function startTimer\(durationMinutes\)/);
+});
+
+test('frontend automatically checks objectives while preserving manual checks', () => {
+  assert.match(html, /let objectiveInterval = null/);
+  assert.match(html, /startObjectivePolling\(\)/);
+  assert.match(html, /checked_at/);
+  assert.match(html, /els\.checkObjectivesBtn\.addEventListener\('click', checkObjectives\)/);
+});
+
 test('frontend ends stale sessions before starting a different scenario', () => {
   const startScenarioMatch = html.match(/async function startScenario\(scenarioId\) \{[\s\S]+?\n    \}/);
   assert.ok(startScenarioMatch, 'startScenario should exist');
