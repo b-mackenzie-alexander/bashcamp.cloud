@@ -48,6 +48,51 @@ test('config exports validated required settings', () => {
   assert.equal(result.stdout, `test-secret\n${databasePath}`);
 });
 
+test('sessionTimeoutMs defaults to 30 minutes when SESSION_TIMEOUT_MINUTES is not set', () => {
+  const result = spawnSync(
+    process.execPath,
+    ['-e', `const c = require(${JSON.stringify(configModule)}); process.stdout.write(String(c.sessionTimeoutMs));`],
+    {
+      cwd: repoRoot,
+      env: { PATH: process.env.PATH, JWT_SECRET: 'test-secret', USERS_FILE: require.resolve('./fixtures/users.json') },
+      encoding: 'utf8',
+    }
+  );
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, String(30 * 60_000));
+});
+
+test('sessionTimeoutMs uses env value when valid', () => {
+  const result = spawnSync(
+    process.execPath,
+    ['-e', `const c = require(${JSON.stringify(configModule)}); process.stdout.write(String(c.sessionTimeoutMs));`],
+    {
+      cwd: repoRoot,
+      env: { PATH: process.env.PATH, JWT_SECRET: 'test-secret', USERS_FILE: require.resolve('./fixtures/users.json'), SESSION_TIMEOUT_MINUTES: '45' },
+      encoding: 'utf8',
+    }
+  );
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, String(45 * 60_000));
+});
+
+test('sessionTimeoutMs falls back to 30 minutes when SESSION_TIMEOUT_MINUTES is not a valid number', () => {
+  const result = spawnSync(
+    process.execPath,
+    ['-e', `const c = require(${JSON.stringify(configModule)}); process.stdout.write(String(c.sessionTimeoutMs));`],
+    {
+      cwd: repoRoot,
+      env: { PATH: process.env.PATH, JWT_SECRET: 'test-secret', USERS_FILE: require.resolve('./fixtures/users.json'), SESSION_TIMEOUT_MINUTES: 'notanumber' },
+      encoding: 'utf8',
+    }
+  );
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, String(30 * 60_000));
+});
+
 test('config defaults DATABASE_PATH to the local data directory', () => {
   const result = spawnSync(
     process.execPath,

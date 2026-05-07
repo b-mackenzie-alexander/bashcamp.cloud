@@ -19,9 +19,16 @@ services:
       - SCENARIOS_PATH=/scenarios
       - SESSION_TIMEOUT_MINUTES=${SESSION_TIMEOUT_MINUTES:-30}
       - RECONNECT_WINDOW_MINUTES=${RECONNECT_WINDOW_MINUTES:-15}
+    networks:
+      - bashcamp-net
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/api/health"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 10s
+
+networks:
+  bashcamp-net:
+    # Pre-create with: docker network create bashcamp-net
+    external: true

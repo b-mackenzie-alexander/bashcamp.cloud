@@ -4,28 +4,9 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const { jwtMiddleware } = require('../lib/auth');
+const { safeScenarioPath, SCENARIOS_PATH } = require('../lib/scenarioPath');
 
 const router = express.Router();
-const SCENARIOS_PATH = process.env.SCENARIOS_PATH ?? path.join(__dirname, '../../scenarios');
-const SCENARIO_ID_RE = /^[a-z0-9][a-z0-9-]*$/;
-
-function safeScenarioPath(scenarioId, fileName) {
-  if (!SCENARIO_ID_RE.test(scenarioId)) {
-    const err = new Error('invalid scenario_id');
-    err.code = 'INVALID_SCENARIO_ID';
-    throw err;
-  }
-
-  const scenariosRoot = path.resolve(SCENARIOS_PATH);
-  const resolved = path.resolve(scenariosRoot, scenarioId, fileName);
-  if (!resolved.startsWith(`${scenariosRoot}${path.sep}`)) {
-    const err = new Error('invalid scenario_id');
-    err.code = 'INVALID_SCENARIO_ID';
-    throw err;
-  }
-
-  return resolved;
-}
 
 router.get('/', jwtMiddleware, (_req, res) => {
   let entries;
@@ -40,7 +21,13 @@ router.get('/', jwtMiddleware, (_req, res) => {
     if (!entry.isDirectory() || entry.name === '_template') continue;
     const metaPath = path.join(SCENARIOS_PATH, entry.name, 'meta.json');
     try {
-      scenarios.push(JSON.parse(fs.readFileSync(metaPath, 'utf8')));
+      const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+      const { id, title, distro, difficulty, duration_minutes, description,
+              type, objectives, timed, dynamic } = meta;
+      if (typeof id !== 'string' || !id) continue;
+      if (typeof title !== 'string' || !title) continue;
+      scenarios.push({ id, title, distro, difficulty, duration_minutes, description,
+                       type, objectives, timed, dynamic });
     } catch {
       // Skip scenarios with unreadable or invalid meta.json
     }

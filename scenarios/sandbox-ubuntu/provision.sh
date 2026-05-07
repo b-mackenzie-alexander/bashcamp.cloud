@@ -13,42 +13,42 @@ if ! id alice &>/dev/null; then
   useradd -m -s /bin/bash -c "Alice Chen, Developer" alice
 fi
 echo "alice:dev@alice1" | chpasswd
-usermod -G developers alice   # primary supplemental group
+usermod -aG developers alice  # primary supplemental group
 
 # bob — developer
 if ! id bob &>/dev/null; then
   useradd -m -s /bin/bash -c "Bob Reyes, Developer" bob
 fi
 echo "bob:dev@bob1" | chpasswd
-usermod -G developers bob
+usermod -aG developers bob
 
 # carol — ops engineer (has sudo)
 if ! id carol &>/dev/null; then
   useradd -m -s /bin/bash -c "Carol Nguyen, Ops Engineer" carol
 fi
 echo "carol:ops@carol1" | chpasswd
-usermod -G sudo,ops carol
+usermod -aG sudo,ops carol
 
 # deploy — service account (no interactive shell)
 if ! id deploy &>/dev/null; then
   useradd -m -s /usr/sbin/nologin -c "Deploy Service Account" deploy
 fi
 echo "deploy:svc@deploy1" | chpasswd
-usermod -G svcaccounts,developers deploy
+usermod -aG svcaccounts,developers deploy
 
 # backup — service account (no interactive shell)
 if ! id backup &>/dev/null; then
   useradd -m -s /usr/sbin/nologin -c "Backup Service Account" backup
 fi
 echo "backup:svc@backup1" | chpasswd
-usermod -G svcaccounts backup
+usermod -aG svcaccounts backup
 
 # nginx_svc — service account (no interactive shell)
 if ! id nginx_svc &>/dev/null; then
   useradd -m -s /usr/sbin/nologin -c "Web Server Service Account" nginx_svc
 fi
 echo "nginx_svc:svc@nginx1" | chpasswd
-usermod -G svcaccounts nginx_svc
+usermod -aG svcaccounts nginx_svc
 
 # sr_sysadmin in ops group (already exists in base image)
 usermod -aG ops sr_sysadmin
@@ -123,16 +123,17 @@ cat > /var/www/html/index.html <<'EOF'
 EOF
 chown nginx_svc:developers /var/www/html/index.html
 
-# Seed application log
-for msg in \
-  "INFO  [2026-04-18 08:01:02] Application started on port 8080" \
-  "INFO  [2026-04-18 08:01:03] Database connection pool initialized (5 connections)" \
-  "WARN  [2026-04-18 09:14:33] Slow query detected: 843ms (threshold: 500ms)" \
-  "INFO  [2026-04-18 11:45:00] Deploy user triggered release v1.2.0" \
-  "ERROR [2026-04-18 14:22:17] Failed to connect to cache.internal:6379 — retrying" \
-  "INFO  [2026-04-18 14:22:19] Cache connection restored"; do
-  echo "$msg" >> /var/log/myapp/app.log
-done
+# Seed application log (guard prevents duplicate entries on re-run)
+if [ ! -s /var/log/myapp/app.log ]; then
+  cat > /var/log/myapp/app.log <<'LOGEOF'
+INFO  [2026-04-18 08:01:02] Application started on port 8080
+INFO  [2026-04-18 08:01:03] Database connection pool initialized (5 connections)
+WARN  [2026-04-18 09:14:33] Slow query detected: 843ms (threshold: 500ms)
+INFO  [2026-04-18 11:45:00] Deploy user triggered release v1.2.0
+ERROR [2026-04-18 14:22:17] Failed to connect to cache.internal:6379 — retrying
+INFO  [2026-04-18 14:22:19] Cache connection restored
+LOGEOF
+fi
 chown deploy:svcaccounts /var/log/myapp/app.log
 chmod 640 /var/log/myapp/app.log
 
