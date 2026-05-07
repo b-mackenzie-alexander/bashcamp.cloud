@@ -38,6 +38,8 @@ test('startup reconciliation destroys stale containers and marks sessions destro
 
   await reconcileStartupSessions(db, {
     destroyContainer: async containerName => { destroyed.push(containerName); },
+  }, {
+    release: () => {},
   }, 2000);
 
   assert.deepEqual(destroyed, ['session-abc123']);
