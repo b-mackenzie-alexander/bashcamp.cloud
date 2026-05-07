@@ -4,6 +4,7 @@ const express = require('express');
 const fs = require('fs');
 const crypto = require('crypto');
 const { jwtMiddleware } = require('../lib/auth');
+const { sessionTimeoutMs } = require('../lib/config');
 const sessionStore = require('../lib/sessionStore');
 const portPool = require('../lib/portPool');
 const docker = require('../lib/docker');
@@ -13,7 +14,7 @@ const { safeScenarioPath } = require('../lib/scenarioPath');
 const router = express.Router();
 
 const RECONNECT_MS = Number(process.env.RECONNECT_WINDOW_MINUTES ?? 15) * 60_000;
-const SESSION_TIMEOUT_MS = Number(process.env.SESSION_TIMEOUT_MINUTES ?? 30) * 60_000;
+const SESSION_TIMEOUT_MS = sessionTimeoutMs;
 const TERMINAL_COOKIE = 'bashcamp_terminal';
 
 // Tracks in-flight session starts to prevent concurrent start race for the same user
@@ -207,7 +208,7 @@ router.post('/reconnect', jwtMiddleware, async (req, res) => {
     return res.status(410).json({ error: 'reconnect window expired' });
   }
 
-  portPool.release(session.port);
+  const oldPort = session.port;
   const newPort = portPool.acquire();
   const newSecret = crypto.randomBytes(16).toString('hex');
 
@@ -216,9 +217,9 @@ router.post('/reconnect', jwtMiddleware, async (req, res) => {
     ttydPid = docker.spawnTtyd(newPort, session.sessionId, newSecret, () => onTtydExit(session.sessionId));
   } catch (err) {
     portPool.release(newPort);
-    sessionStore.update(session.sessionId, { port: session.port, status: 'disconnected' });
     return res.status(500).json({ error: 'failed to reconnect terminal' });
   }
+  portPool.release(oldPort);
 
   sessionStore.update(session.sessionId, {
     port: newPort,

@@ -36,13 +36,15 @@ test('startup reconciliation destroys stale containers and marks sessions destro
     createdAt: 1000,
   });
 
+  const released = [];
   await reconcileStartupSessions(db, {
     destroyContainer: async containerName => { destroyed.push(containerName); },
   }, {
-    release: () => {},
+    release: port => { released.push(port); },
   }, 2000);
 
   assert.deepEqual(destroyed, ['session-abc123']);
+  assert.deepEqual(released, [9000]);
   assert.deepEqual(sessions.findOpenSessions(db), []);
   assert.equal(db.prepare('select status from sessions where session_id = ?').get('abc123').status, 'destroyed');
   assert.equal(db.prepare('select event_type from session_events order by id desc limit 1').get().event_type, 'startup_reconciled');
