@@ -2,21 +2,22 @@
 
 const express = require('express');
 const fs = require('fs');
-const path = require('path');
 const crypto = require('crypto');
 const { jwtMiddleware } = require('../lib/auth');
 const sessionStore = require('../lib/sessionStore');
 const portPool = require('../lib/portPool');
 const docker = require('../lib/docker');
 const { destroySession } = require('../lib/lifecycle');
+const { safeScenarioPath } = require('../lib/scenarioPath');
 
 const router = express.Router();
 
-const SCENARIOS_PATH = process.env.SCENARIOS_PATH ?? path.join(__dirname, '../../scenarios');
 const RECONNECT_MS = Number(process.env.RECONNECT_WINDOW_MINUTES ?? 15) * 60_000;
 const SESSION_TIMEOUT_MS = Number(process.env.SESSION_TIMEOUT_MINUTES ?? 30) * 60_000;
-const SCENARIO_ID_RE = /^[a-z0-9][a-z0-9-]*$/;
 const TERMINAL_COOKIE = 'bashcamp_terminal';
+
+// Tracks in-flight session starts to prevent concurrent start race for the same user
+const pendingStarts = new Set();
 
 function terminalUrl(port) {
   return `/t/${port}/`;
@@ -49,6 +50,11 @@ function setTerminalCookie(res, sessionId, terminalSecret) {
   );
 }
 
+function clearTerminalCookie(res) {
+  res.setHeader('Set-Cookie',
+    `${TERMINAL_COOKIE}=; HttpOnly; Secure; SameSite=Strict; Path=/t/; Max-Age=0`);
+}
+
 function sessionPayload(session, extra = {}) {
   const now = Date.now();
   return {
@@ -69,24 +75,6 @@ function checkPayload(objectives) {
     complete: objectives.length > 0 && objectives.every(objective => objective.passed === true),
     checked_at: Date.now(),
   };
-}
-
-function safeScenarioPath(scenarioId, fileName) {
-  if (!SCENARIO_ID_RE.test(scenarioId)) {
-    const err = new Error('invalid scenario_id');
-    err.code = 'INVALID_SCENARIO_ID';
-    throw err;
-  }
-
-  const scenariosRoot = path.resolve(SCENARIOS_PATH);
-  const resolved = path.resolve(scenariosRoot, scenarioId, fileName);
-  if (!resolved.startsWith(`${scenariosRoot}${path.sep}`)) {
-    const err = new Error('invalid scenario_id');
-    err.code = 'INVALID_SCENARIO_ID';
-    throw err;
-  }
-
-  return resolved;
 }
 
 function onTtydExit(sessionId) {
@@ -128,9 +116,6 @@ async function startSession(userId, scenarioId) {
     throw err;
   }
 
-  // Wait for systemd to boot
-  await new Promise(r => setTimeout(r, 5000));
-
   try {
     const provisionPath = safeScenarioPath(scenarioId, 'provision.sh');
     docker.runProvision(containerName, provisionPath);
@@ -140,7 +125,14 @@ async function startSession(userId, scenarioId) {
     throw err;
   }
 
-  const ttydPid = docker.spawnTtyd(port, sessionId, terminalSecret, () => onTtydExit(sessionId));
+  let ttydPid;
+  try {
+    ttydPid = docker.spawnTtyd(port, sessionId, terminalSecret, () => onTtydExit(sessionId));
+  } catch (err) {
+    await docker.destroyContainer(containerName).catch(() => {});
+    portPool.release(port);
+    throw err;
+  }
 
   sessionStore.create({
     sessionId,
@@ -177,6 +169,11 @@ router.post('/start', jwtMiddleware, async (req, res) => {
   const { scenario_id } = req.body ?? {};
   if (!scenario_id) return res.status(400).json({ error: 'scenario_id required' });
 
+  if (pendingStarts.has(req.user.userId)) {
+    return res.status(409).json({ error: 'session start in progress' });
+  }
+  pendingStarts.add(req.user.userId);
+
   try {
     const result = await startSession(req.user.userId, scenario_id);
     setTerminalCookie(res, result.sessionId, result.terminalSecret);
@@ -186,8 +183,11 @@ router.post('/start', jwtMiddleware, async (req, res) => {
   } catch (err) {
     if (err.code === 'INVALID_SCENARIO_ID') return res.status(400).json({ error: err.message });
     if (err.code === 'NOT_FOUND') return res.status(404).json({ error: err.message });
+    if (err.code === 'UNKNOWN_DISTRO') return res.status(400).json({ error: err.message });
     console.error('session start error:', err);
     res.status(500).json({ error: 'failed to start session' });
+  } finally {
+    pendingStarts.delete(req.user.userId);
   }
 });
 
@@ -210,7 +210,15 @@ router.post('/reconnect', jwtMiddleware, async (req, res) => {
   portPool.release(session.port);
   const newPort = portPool.acquire();
   const newSecret = crypto.randomBytes(16).toString('hex');
-  const ttydPid = docker.spawnTtyd(newPort, session.sessionId, newSecret, () => onTtydExit(session.sessionId));
+
+  let ttydPid;
+  try {
+    ttydPid = docker.spawnTtyd(newPort, session.sessionId, newSecret, () => onTtydExit(session.sessionId));
+  } catch (err) {
+    portPool.release(newPort);
+    sessionStore.update(session.sessionId, { port: session.port, status: 'disconnected' });
+    return res.status(500).json({ error: 'failed to reconnect terminal' });
+  }
 
   sessionStore.update(session.sessionId, {
     port: newPort,
@@ -236,6 +244,7 @@ router.post('/end', jwtMiddleware, async (req, res) => {
   await docker.destroyContainer(session.containerName).catch(() => {});
   portPool.release(session.port);
   sessionStore.remove(session.sessionId);
+  clearTerminalCookie(res);
   res.sendStatus(204);
 });
 
@@ -300,11 +309,16 @@ router.get('/terminal-auth', (req, res) => {
   const sessionId = credential.slice(0, separator);
   const terminalSecret = credential.slice(separator + 1);
   const session = sessionStore.get(sessionId);
+
+  const expected = Buffer.from(session?.terminalSecret ?? '');
+  const actual = Buffer.from(terminalSecret);
+  const secretMatches = expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
+
   if (
     !session ||
     session.status !== 'active' ||
     session.port !== port ||
-    session.terminalSecret !== terminalSecret
+    !secretMatches
   ) {
     return res.sendStatus(401);
   }
@@ -314,4 +328,4 @@ router.get('/terminal-auth', (req, res) => {
   res.sendStatus(204);
 });
 
-module.exports = router;
+module.exports = { router, clearTerminalCookie };

@@ -95,7 +95,7 @@ function validate(filePath) {
   }
 
   // Optional string fields
-  for (const field of ['distro_pair']) {
+  for (const field of ['distro_pair', 'starting_user']) {
     if (field in data && typeof data[field] !== 'string') {
       errors.push(`${field} must be a string`);
     }

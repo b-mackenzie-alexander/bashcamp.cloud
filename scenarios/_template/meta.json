@@ -1,5 +1,6 @@
 {
   "id": "your-scenario-id",
+  "type": "scenario",
   "title": "Short descriptive title",
   "distro": "ubuntu-22.04",
   "difficulty": "beginner",

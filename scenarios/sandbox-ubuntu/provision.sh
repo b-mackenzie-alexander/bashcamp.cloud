@@ -13,21 +13,21 @@ if ! id alice &>/dev/null; then
   useradd -m -s /bin/bash -c "Alice Chen, Developer" alice
 fi
 echo "alice:dev@alice1" | chpasswd
-usermod -G developers alice   # primary supplemental group
+usermod -aG developers alice  # primary supplemental group
 
 # bob — developer
 if ! id bob &>/dev/null; then
   useradd -m -s /bin/bash -c "Bob Reyes, Developer" bob
 fi
 echo "bob:dev@bob1" | chpasswd
-usermod -G developers bob
+usermod -aG developers bob
 
 # carol — ops engineer (has sudo)
 if ! id carol &>/dev/null; then
   useradd -m -s /bin/bash -c "Carol Nguyen, Ops Engineer" carol
 fi
 echo "carol:ops@carol1" | chpasswd
-usermod -G sudo,ops carol
+usermod -aG sudo,ops carol
 
 # deploy — service account (no interactive shell)
 if ! id deploy &>/dev/null; then
