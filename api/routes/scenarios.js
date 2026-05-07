@@ -40,8 +40,11 @@ router.get('/', jwtMiddleware, (_req, res) => {
     if (!entry.isDirectory() || entry.name === '_template') continue;
     const metaPath = path.join(SCENARIOS_PATH, entry.name, 'meta.json');
     try {
+      const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
       const { id, title, distro, difficulty, duration_minutes, description,
-              type, objectives, timed, dynamic } = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+              type, objectives, timed, dynamic } = meta;
+      if (typeof id !== 'string' || !id) continue;
+      if (typeof title !== 'string' || !title) continue;
       scenarios.push({ id, title, distro, difficulty, duration_minutes, description,
                        type, objectives, timed, dynamic });
     } catch {

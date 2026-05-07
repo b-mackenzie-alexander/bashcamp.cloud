@@ -30,4 +30,5 @@ services:
 
 networks:
   bashcamp-net:
+    # Pre-create with: docker network create bashcamp-net
     external: true

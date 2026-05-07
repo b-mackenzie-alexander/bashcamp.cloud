@@ -73,6 +73,7 @@ RUN useradd -m -s /bin/bash sr_sysadmin \
   && passwd -l sr_sysadmin \
   && usermod -aG wheel sr_sysadmin \
   && echo "sr_sysadmin ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/sr_sysadmin \
-  && chmod 440 /etc/sudoers.d/sr_sysadmin
+  && chmod 440 /etc/sudoers.d/sr_sysadmin \
+  && visudo -cf /etc/sudoers.d/sr_sysadmin
 
 ENTRYPOINT ["/usr/lib/systemd/systemd"]
