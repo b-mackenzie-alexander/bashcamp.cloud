@@ -35,6 +35,8 @@ router.post('/logout', jwtMiddleware, async (req, res) => {
     portPool.release(session.port);
     sessionStore.remove(session.sessionId);
   }
+  res.setHeader('Set-Cookie',
+    'bashcamp_terminal=; HttpOnly; Secure; SameSite=Strict; Path=/t/; Max-Age=0');
   res.sendStatus(200);
 });
 

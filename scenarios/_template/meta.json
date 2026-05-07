@@ -1,9 +1,12 @@
 {
   "id": "your-scenario-id",
+  "type": "scenario",
   "title": "Short descriptive title",
   "distro": "ubuntu-22.04",
   "difficulty": "beginner",
   "duration_minutes": 20,
   "objectives": ["X.X"],
-  "description": "One sentence: what is broken and what the student must fix."
+  "description": "One sentence: what is broken and what the student must fix.",
+  "timed": false,
+  "dynamic": false
 }
