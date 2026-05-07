@@ -35,10 +35,9 @@ async function createContainer(sessionId, distro) {
     NetworkMode: 'bashcamp-net',
     CapDrop: ['ALL'],
     CapAdd: ['CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'KILL', 'SETUID', 'SETGID', 'SYS_ADMIN', 'AUDIT_WRITE'],
-    SecurityOpt: ['no-new-privileges:true'],
     Tmpfs: { '/run': '', '/run/lock': '' },
-    CgroupnsMode: 'private',
-    Binds: [],
+    CgroupnsMode: 'host',
+    Binds: ['/sys/fs/cgroup:/sys/fs/cgroup:rw'],
   };
 
   const image = IMAGE[distro];
