@@ -35,18 +35,21 @@ async function createContainer(sessionId, distro) {
     NetworkMode: 'bashcamp-net',
     CapDrop: ['ALL'],
     CapAdd: ['CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'KILL', 'SETUID', 'SETGID', 'SYS_ADMIN', 'AUDIT_WRITE'],
-    SecurityOpt: ['no-new-privileges:false'],
+    SecurityOpt: ['no-new-privileges:true'],
     Tmpfs: { '/run': '', '/run/lock': '' },
-    CgroupnsMode: 'host',
-    Binds: [
-      '/sys/fs/cgroup:/sys/fs/cgroup:rw',
-    ],
+    CgroupnsMode: 'private',
+    Binds: [],
   };
+
+  const image = IMAGE[distro];
+  if (!image) {
+    throw Object.assign(new Error(`unknown distro: ${distro}`), { code: 'UNKNOWN_DISTRO' });
+  }
 
   const container = await docker.createContainer({
     name: containerName,
     Hostname: 'bashcamp-lab',
-    Image: IMAGE[distro],
+    Image: image,
     HostConfig: hostConfig,
   });
   await container.start();
@@ -77,6 +80,7 @@ function spawnTtyd(port, sessionId, terminalSecret, onExit) {
   ], { detached: false });
   proc.on('error', err => console.error('ttyd spawn error (session %s): %s', sessionId, err.message));
   proc.on('exit', onExit);
+  if (!proc.pid) throw new Error(`ttyd failed to start for session ${sessionId}`);
   return proc.pid;
 }
 

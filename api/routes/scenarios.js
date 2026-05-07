@@ -40,7 +40,10 @@ router.get('/', jwtMiddleware, (_req, res) => {
     if (!entry.isDirectory() || entry.name === '_template') continue;
     const metaPath = path.join(SCENARIOS_PATH, entry.name, 'meta.json');
     try {
-      scenarios.push(JSON.parse(fs.readFileSync(metaPath, 'utf8')));
+      const { id, title, distro, difficulty, duration_minutes, description,
+              type, objectives, timed, dynamic } = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+      scenarios.push({ id, title, distro, difficulty, duration_minutes, description,
+                       type, objectives, timed, dynamic });
     } catch {
       // Skip scenarios with unreadable or invalid meta.json
     }
