@@ -6,6 +6,7 @@ const { destroySession } = require('./lib/lifecycle');
 const { db } = require('./lib/appState');
 const docker = require('./lib/docker');
 const portPool = require('./lib/portPool');
+const { sessionTimeoutMs, sessionMaxLifetimeMs } = require('./lib/config');
 const { reconcileStartupSessions } = require('./lib/startup');
 
 process.on('unhandledRejection', (reason) => {
@@ -13,18 +14,11 @@ process.on('unhandledRejection', (reason) => {
   process.exit(1);
 });
 
-const timeoutMinutesRaw = Number(process.env.SESSION_TIMEOUT_MINUTES ?? 30);
-const timeoutMinutes = Number.isFinite(timeoutMinutesRaw) && timeoutMinutesRaw > 0
-  ? timeoutMinutesRaw
-  : 30;
 // Idle timeout: session is destroyed if lastActivityAt is older than this.
 // Heartbeats from visible browser tabs reset lastActivityAt every 60s.
-const SESSION_TIMEOUT_MS = timeoutMinutes * 60_000;
-// Absolute cap: session is destroyed regardless of activity after this many hours.
-const maxLifetimeHoursRaw = Number(process.env.SESSION_MAX_LIFETIME_HOURS ?? 4);
-const SESSION_MAX_LIFETIME_MS = (Number.isFinite(maxLifetimeHoursRaw) && maxLifetimeHoursRaw > 0
-  ? maxLifetimeHoursRaw
-  : 4) * 60 * 60_000;
+const SESSION_TIMEOUT_MS = sessionTimeoutMs;
+// Absolute cap: session is destroyed regardless of activity after this duration.
+const SESSION_MAX_LIFETIME_MS = sessionMaxLifetimeMs;
 
 const app = express();
 app.set('trust proxy', 1);

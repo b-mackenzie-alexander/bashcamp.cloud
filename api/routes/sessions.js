@@ -4,7 +4,7 @@ const express = require('express');
 const fs = require('fs');
 const crypto = require('crypto');
 const { jwtMiddleware } = require('../lib/auth');
-const { sessionTimeoutMs } = require('../lib/config');
+const { sessionTimeoutMs, sessionMaxLifetimeMs } = require('../lib/config');
 const sessionStore = require('../lib/sessionStore');
 const portPool = require('../lib/portPool');
 const docker = require('../lib/docker');
@@ -15,6 +15,7 @@ const router = express.Router();
 
 const RECONNECT_MS = Number(process.env.RECONNECT_WINDOW_MINUTES ?? 60) * 60_000;
 const SESSION_TIMEOUT_MS = sessionTimeoutMs;
+const SESSION_MAX_LIFETIME_MS = sessionMaxLifetimeMs;
 const TERMINAL_COOKIE = 'bashcamp_terminal';
 
 // Tracks in-flight session starts to prevent concurrent start race for the same user
@@ -44,7 +45,9 @@ function parseCookies(header = '') {
 
 function setTerminalCookie(res, sessionId, terminalSecret) {
   const value = encodeURIComponent(`${sessionId}:${terminalSecret}`);
-  const maxAge = Math.ceil((SESSION_TIMEOUT_MS + RECONNECT_MS) / 1000);
+  // Cookie must outlive the absolute session cap plus the reconnect window so a
+  // user can still reconnect right before the session hard-expires.
+  const maxAge = Math.ceil((SESSION_MAX_LIFETIME_MS + RECONNECT_MS) / 1000);
   res.setHeader(
     'Set-Cookie',
     `${TERMINAL_COOKIE}=${value}; HttpOnly; Secure; SameSite=Strict; Path=/t/; Max-Age=${maxAge}`
