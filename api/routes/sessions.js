@@ -13,7 +13,10 @@ const { safeScenarioPath } = require('../lib/scenarioPath');
 
 const router = express.Router();
 
-const RECONNECT_MS = Number(process.env.RECONNECT_WINDOW_MINUTES ?? 60) * 60_000;
+const _reconnectMinutesRaw = Number(process.env.RECONNECT_WINDOW_MINUTES ?? 60);
+const RECONNECT_MS = (Number.isFinite(_reconnectMinutesRaw) && _reconnectMinutesRaw > 0
+  ? _reconnectMinutesRaw
+  : 60) * 60_000;
 const SESSION_TIMEOUT_MS = sessionTimeoutMs;
 const SESSION_MAX_LIFETIME_MS = sessionMaxLifetimeMs;
 const TERMINAL_COOKIE = 'bashcamp_terminal';
