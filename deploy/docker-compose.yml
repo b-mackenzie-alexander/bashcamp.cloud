@@ -18,7 +18,8 @@ services:
       - DATABASE_PATH=/data/bashcamp.sqlite
       - SCENARIOS_PATH=/scenarios
       - SESSION_TIMEOUT_MINUTES=${SESSION_TIMEOUT_MINUTES:-30}
-      - RECONNECT_WINDOW_MINUTES=${RECONNECT_WINDOW_MINUTES:-15}
+      - SESSION_MAX_LIFETIME_HOURS=${SESSION_MAX_LIFETIME_HOURS:-4}
+      - RECONNECT_WINDOW_MINUTES=${RECONNECT_WINDOW_MINUTES:-60}
     networks:
       - bashcamp-net
     healthcheck:
