@@ -4,7 +4,7 @@ const express = require('express');
 const fs = require('fs');
 const crypto = require('crypto');
 const { jwtMiddleware } = require('../lib/auth');
-const { sessionTimeoutMs } = require('../lib/config');
+const { sessionTimeoutMs, sessionMaxLifetimeMs } = require('../lib/config');
 const sessionStore = require('../lib/sessionStore');
 const portPool = require('../lib/portPool');
 const docker = require('../lib/docker');
@@ -13,8 +13,12 @@ const { safeScenarioPath } = require('../lib/scenarioPath');
 
 const router = express.Router();
 
-const RECONNECT_MS = Number(process.env.RECONNECT_WINDOW_MINUTES ?? 15) * 60_000;
+const _reconnectMinutesRaw = Number(process.env.RECONNECT_WINDOW_MINUTES ?? 60);
+const RECONNECT_MS = (Number.isFinite(_reconnectMinutesRaw) && _reconnectMinutesRaw > 0
+  ? _reconnectMinutesRaw
+  : 60) * 60_000;
 const SESSION_TIMEOUT_MS = sessionTimeoutMs;
+const SESSION_MAX_LIFETIME_MS = sessionMaxLifetimeMs;
 const TERMINAL_COOKIE = 'bashcamp_terminal';
 
 // Tracks in-flight session starts to prevent concurrent start race for the same user
@@ -44,7 +48,9 @@ function parseCookies(header = '') {
 
 function setTerminalCookie(res, sessionId, terminalSecret) {
   const value = encodeURIComponent(`${sessionId}:${terminalSecret}`);
-  const maxAge = Math.ceil((SESSION_TIMEOUT_MS + RECONNECT_MS) / 1000);
+  // Cookie must outlive the absolute session cap plus the reconnect window so a
+  // user can still reconnect right before the session hard-expires.
+  const maxAge = Math.ceil((SESSION_MAX_LIFETIME_MS + RECONNECT_MS) / 1000);
   res.setHeader(
     'Set-Cookie',
     `${TERMINAL_COOKIE}=${value}; HttpOnly; Secure; SameSite=Strict; Path=/t/; Max-Age=${maxAge}`
@@ -129,6 +135,7 @@ async function startSession(userId, scenarioId) {
   let ttydPid;
   try {
     ttydPid = docker.spawnTtyd(port, sessionId, terminalSecret, () => onTtydExit(sessionId));
+    await docker.waitForTtyd(port);
   } catch (err) {
     await docker.destroyContainer(containerName).catch(() => {});
     portPool.release(port);
@@ -147,6 +154,7 @@ async function startSession(userId, scenarioId) {
     status: 'active',
     createdAt: Date.now(),
     connectedAt: Date.now(),
+    lastActivityAt: Date.now(),
     disconnectedAt: null,
     expiresAt: null,
   });
@@ -215,6 +223,7 @@ router.post('/reconnect', jwtMiddleware, async (req, res) => {
   let ttydPid;
   try {
     ttydPid = docker.spawnTtyd(newPort, session.sessionId, newSecret, () => onTtydExit(session.sessionId));
+    await docker.waitForTtyd(newPort);
   } catch (err) {
     portPool.release(newPort);
     return res.status(500).json({ error: 'failed to reconnect terminal' });
@@ -227,6 +236,7 @@ router.post('/reconnect', jwtMiddleware, async (req, res) => {
     ttydPid,
     status: 'active',
     connectedAt: Date.now(),
+    lastActivityAt: Date.now(),
     disconnectedAt: null,
     expiresAt: null,
   });
@@ -234,6 +244,14 @@ router.post('/reconnect', jwtMiddleware, async (req, res) => {
   setTerminalCookie(res, session.sessionId, newSecret);
   const updated = sessionStore.get(session.sessionId);
   res.json(sessionPayload(updated, { session_id: session.sessionId }));
+});
+
+// POST /api/session/heartbeat — resets idle timer; called by frontend every 60s while tab is visible
+router.post('/heartbeat', jwtMiddleware, (req, res) => {
+  const session = sessionStore.getByUser(req.user.userId);
+  if (!session || session.status !== 'active') return res.sendStatus(204);
+  sessionStore.update(session.sessionId, { lastActivityAt: Date.now() });
+  res.sendStatus(204);
 });
 
 // POST /api/session/end — destroy without restarting

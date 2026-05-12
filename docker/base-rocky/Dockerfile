@@ -7,8 +7,11 @@ ENV container=docker
 # pre-existing packages to restore their stripped man pages. Without this,
 # man ls, man tar, etc. return "no entry".
 # --allowerasing replaces curl-minimal (pre-installed in rockylinux:9 base) with full curl
+# EPEL is enabled first to provide hwinfo, lsscsi, wireshark-cli, and mtr.
+# e2fsprogs is reinstalled to restore chattr/lsattr man pages.
 RUN sed -i '/^tsflags/d' /etc/dnf/dnf.conf \
-  && dnf reinstall -y coreutils tar gzip grep findutils util-linux \
+  && dnf install -y epel-release \
+  && dnf reinstall -y coreutils tar gzip grep findutils util-linux e2fsprogs \
   && dnf install -y --allowerasing \
     # systemd and service infrastructure
     systemd \
@@ -51,6 +54,19 @@ RUN sed -i '/^tsflags/d' /etc/dnf/dnf.conf \
     bind-utils \
     file \
     tree \
+    # hardware and storage inspection (Linux+ exam objectives)
+    # lsattr/chattr already present via e2fsprogs (reinstalled above for man pages)
+    lsscsi \
+    hwinfo \
+    # networking tools (Linux+ exam objectives; also required for networking scenarios)
+    tcpdump \
+    nmap \
+    nftables \
+    iptables \
+    traceroute \
+    mtr \
+    ethtool \
+    wireshark-cli \
   && dnf clean all
 
 # Mask units that cannot function in a container.
@@ -68,9 +84,12 @@ RUN systemctl mask \
     sys-fs-fuse-connections.mount \
     sys-kernel-config.mount
 
+# sr_sysadmin is the student-facing shell user for all lab sessions.
+# Password is intentionally simple and documented in scenario READMEs — these
+# containers are throwaway and only reachable through the authenticated ttyd path.
 # Rocky uses the full path — /sbin/init is not guaranteed to be a symlink here
 RUN useradd -m -s /bin/bash sr_sysadmin \
-  && passwd -l sr_sysadmin \
+  && echo 'sr_sysadmin:BashcampAdmin1!' | chpasswd \
   && usermod -aG wheel sr_sysadmin \
   && echo "sr_sysadmin ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/sr_sysadmin \
   && chmod 440 /etc/sudoers.d/sr_sysadmin \

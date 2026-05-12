@@ -682,6 +682,24 @@
       els.labTimer.className = 'lab-timer hidden';
     }
 
+    // --- Heartbeat ---
+    // Keeps the idle timer alive on the server while the tab is visible.
+    // Fires every 60s; server destroys the session after SESSION_TIMEOUT_MINUTES of no heartbeats.
+    let heartbeatInterval = null;
+
+    function stopHeartbeat() {
+      if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
+    }
+
+    function startHeartbeat() {
+      stopHeartbeat();
+      heartbeatInterval = setInterval(() => {
+        if (document.visibilityState === 'visible') {
+          api('/api/session/heartbeat', { method: 'POST' }).catch(() => {});
+        }
+      }, 60_000);
+    }
+
     function formatElapsed(seconds) {
       const h = Math.floor(seconds / 3600);
       const m = Math.floor((seconds % 3600) / 60);
@@ -783,6 +801,7 @@
 
     async function leaveLabAndReturn() {
       stopTimer();
+      stopHeartbeat();
       stopObjectivePolling();
       resetObjectivesPanel();
       els.terminalFrame.removeAttribute('src');
@@ -809,7 +828,11 @@
           startObjectivePolling();
         }
       }
+      startHeartbeat();
       els.terminalUrl.textContent = session.terminal_url;
+      // Remove src first so browsers always reload the frame, even when the URL is unchanged
+      // (e.g. reconnecting to an already-active session on the same port).
+      els.terminalFrame.removeAttribute('src');
       els.terminalFrame.src = session.terminal_url;
       els.labMessage.textContent = '';
       setStatus('Lab active');
@@ -875,6 +898,7 @@
 
     async function resetSession() {
       stopTimer();
+      stopHeartbeat();
       stopObjectivePolling();
       resetObjectivesPanel();
       els.labMessage.textContent = 'Resetting lab...';
@@ -936,6 +960,7 @@
         await api('/api/auth/logout', { method: 'POST' });
       } catch {}
       stopTimer();
+      stopHeartbeat();
       stopObjectivePolling();
       setToken(null);
       setStatus('Signed out');
@@ -944,6 +969,7 @@
 
     els.backButton.addEventListener('click', async () => {
       stopTimer();
+      stopHeartbeat();
       stopObjectivePolling();
       resetObjectivesPanel();
       els.terminalFrame.removeAttribute('src');

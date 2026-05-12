@@ -5,12 +5,17 @@ FROM ubuntu:22.04
 ENV DEBIAN_FRONTEND=noninteractive
 ENV container=docker
 
+# Enable the universe repo (provides nmap, lsscsi, hwinfo, tshark, traceroute, etc.)
+RUN echo "deb http://archive.ubuntu.com/ubuntu jammy universe" >> /etc/apt/sources.list \
+  && echo "deb http://archive.ubuntu.com/ubuntu jammy-updates universe" >> /etc/apt/sources.list
+
 # Remove the dpkg config that strips man pages from the ubuntu:22.04 base image,
 # then reinstall pre-existing packages to restore their stripped pages before
 # installing our own. Without this, man ls, man tar, etc. return "no entry".
+# e2fsprogs is reinstalled here to restore chattr/lsattr man pages.
 RUN rm -f /etc/dpkg/dpkg.cfg.d/excludes \
   && apt-get update \
-  && apt-get install -y --reinstall coreutils tar gzip grep findutils util-linux \
+  && apt-get install -y --reinstall coreutils tar gzip grep findutils util-linux e2fsprogs \
   && apt-get install -y --no-install-recommends \
     # systemd and service infrastructure
     systemd \
@@ -54,6 +59,19 @@ RUN rm -f /etc/dpkg/dpkg.cfg.d/excludes \
     dnsutils \
     file \
     tree \
+    # hardware and storage inspection (Linux+ exam objectives)
+    # lsattr/chattr already present via e2fsprogs (reinstalled above for man pages)
+    lsscsi \
+    hwinfo \
+    # networking tools (Linux+ exam objectives; also required for networking scenarios)
+    tcpdump \
+    nmap \
+    nftables \
+    iptables \
+    traceroute \
+    mtr-tiny \
+    ethtool \
+    tshark \
   && if [ -x /usr/bin/man.REAL ]; then mv /usr/bin/man.REAL /usr/bin/man; fi \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
@@ -75,8 +93,11 @@ RUN systemctl mask \
     systemd-update-utmp.service \
     systemd-update-utmp-runlevel.service
 
+# sr_sysadmin is the student-facing shell user for all lab sessions.
+# Password is intentionally simple and documented in scenario READMEs — these
+# containers are throwaway and only reachable through the authenticated ttyd path.
 RUN useradd -m -s /bin/bash sr_sysadmin \
-  && passwd -l sr_sysadmin \
+  && echo 'sr_sysadmin:BashcampAdmin1!' | chpasswd \
   && usermod -aG sudo sr_sysadmin \
   && echo "sr_sysadmin ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/sr_sysadmin \
   && chmod 440 /etc/sudoers.d/sr_sysadmin \

@@ -1,5 +1,6 @@
 'use strict';
 
+const net = require('net');
 const Docker = require('dockerode');
 const { spawn, execFileSync } = require('child_process');
 
@@ -34,7 +35,7 @@ async function createContainer(sessionId, distro) {
     NanoCpus: 1_000_000_000,
     NetworkMode: 'bashcamp-net',
     CapDrop: ['ALL'],
-    CapAdd: ['CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'KILL', 'SETUID', 'SETGID', 'SYS_ADMIN', 'AUDIT_WRITE'],
+    CapAdd: ['CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'KILL', 'SETUID', 'SETGID', 'SYS_ADMIN', 'AUDIT_WRITE', 'LINUX_IMMUTABLE'],
     Tmpfs: { '/run': '', '/run/lock': '' },
     CgroupnsMode: 'host',
     Binds: ['/sys/fs/cgroup:/sys/fs/cgroup:rw'],
@@ -95,4 +96,20 @@ function killTtyd(pid) {
   try { process.kill(pid, 'SIGTERM'); } catch (_) {}
 }
 
-module.exports = { createContainer, destroyContainer, runProvision, runCheck, spawnTtyd, killTtyd };
+// Poll until ttyd's HTTP listener is accepting TCP connections, or timeout.
+// Prevents blank-iframe races where the terminal iframe loads before ttyd is ready.
+async function waitForTtyd(port, timeoutMs = 3000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, 100));
+    const up = await new Promise(resolve => {
+      const sock = net.connect(port, '127.0.0.1', () => { sock.destroy(); resolve(true); });
+      sock.on('error', () => resolve(false));
+      sock.setTimeout(500, () => { sock.destroy(); resolve(false); });
+    });
+    if (up) return;
+  }
+  console.warn('waitForTtyd: port %d not ready after %dms', port, timeoutMs);
+}
+
+module.exports = { createContainer, destroyContainer, runProvision, runCheck, spawnTtyd, waitForTtyd, killTtyd };
