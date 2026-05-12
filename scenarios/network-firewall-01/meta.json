@@ -1,0 +1,14 @@
+{
+  "id": "network-firewall-01",
+  "type": "scenario",
+  "starting_user": "sr_sysadmin",
+  "title": "Locked Out by the Firewall",
+  "distro": "ubuntu-22.04",
+  "distro_pair": "network-firewall-01-rocky",
+  "difficulty": "intermediate",
+  "duration_minutes": 25,
+  "timed": false,
+  "dynamic": false,
+  "objectives": ["4.1", "4.2", "4.4"],
+  "description": "A misconfigured nftables ruleset is blocking incoming HTTP traffic on port 80. Diagnose the firewall, identify the offending rule, and restore service access."
+}

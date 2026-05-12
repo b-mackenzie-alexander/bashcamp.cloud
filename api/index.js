@@ -17,7 +17,14 @@ const timeoutMinutesRaw = Number(process.env.SESSION_TIMEOUT_MINUTES ?? 30);
 const timeoutMinutes = Number.isFinite(timeoutMinutesRaw) && timeoutMinutesRaw > 0
   ? timeoutMinutesRaw
   : 30;
+// Idle timeout: session is destroyed if lastActivityAt is older than this.
+// Heartbeats from visible browser tabs reset lastActivityAt every 60s.
 const SESSION_TIMEOUT_MS = timeoutMinutes * 60_000;
+// Absolute cap: session is destroyed regardless of activity after this many hours.
+const maxLifetimeHoursRaw = Number(process.env.SESSION_MAX_LIFETIME_HOURS ?? 4);
+const SESSION_MAX_LIFETIME_MS = (Number.isFinite(maxLifetimeHoursRaw) && maxLifetimeHoursRaw > 0
+  ? maxLifetimeHoursRaw
+  : 4) * 60 * 60_000;
 
 const app = express();
 app.set('trust proxy', 1);
@@ -34,7 +41,10 @@ const cleanupTimer = setInterval(async () => {
   const now = Date.now();
   for (const [sessionId, session] of sessionStore.all()) {
     try {
-      if (session.status === 'active' && session.connectedAt && now - session.connectedAt > SESSION_TIMEOUT_MS) {
+      if (session.status === 'active' && session.createdAt && now - session.createdAt > SESSION_MAX_LIFETIME_MS) {
+        // Absolute cap: even an active user must eventually release the container
+        await destroySession(sessionId, session);
+      } else if (session.status === 'active' && (session.lastActivityAt || session.connectedAt) && now - (session.lastActivityAt || session.connectedAt) > SESSION_TIMEOUT_MS) {
         await destroySession(sessionId, session);
       } else if (session.status === 'disconnected' && session.expiresAt && now > session.expiresAt) {
         await destroySession(sessionId, session);

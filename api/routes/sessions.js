@@ -13,7 +13,7 @@ const { safeScenarioPath } = require('../lib/scenarioPath');
 
 const router = express.Router();
 
-const RECONNECT_MS = Number(process.env.RECONNECT_WINDOW_MINUTES ?? 15) * 60_000;
+const RECONNECT_MS = Number(process.env.RECONNECT_WINDOW_MINUTES ?? 60) * 60_000;
 const SESSION_TIMEOUT_MS = sessionTimeoutMs;
 const TERMINAL_COOKIE = 'bashcamp_terminal';
 
@@ -129,6 +129,7 @@ async function startSession(userId, scenarioId) {
   let ttydPid;
   try {
     ttydPid = docker.spawnTtyd(port, sessionId, terminalSecret, () => onTtydExit(sessionId));
+    await docker.waitForTtyd(port);
   } catch (err) {
     await docker.destroyContainer(containerName).catch(() => {});
     portPool.release(port);
@@ -147,6 +148,7 @@ async function startSession(userId, scenarioId) {
     status: 'active',
     createdAt: Date.now(),
     connectedAt: Date.now(),
+    lastActivityAt: Date.now(),
     disconnectedAt: null,
     expiresAt: null,
   });
@@ -215,6 +217,7 @@ router.post('/reconnect', jwtMiddleware, async (req, res) => {
   let ttydPid;
   try {
     ttydPid = docker.spawnTtyd(newPort, session.sessionId, newSecret, () => onTtydExit(session.sessionId));
+    await docker.waitForTtyd(newPort);
   } catch (err) {
     portPool.release(newPort);
     return res.status(500).json({ error: 'failed to reconnect terminal' });
@@ -227,6 +230,7 @@ router.post('/reconnect', jwtMiddleware, async (req, res) => {
     ttydPid,
     status: 'active',
     connectedAt: Date.now(),
+    lastActivityAt: Date.now(),
     disconnectedAt: null,
     expiresAt: null,
   });
@@ -234,6 +238,14 @@ router.post('/reconnect', jwtMiddleware, async (req, res) => {
   setTerminalCookie(res, session.sessionId, newSecret);
   const updated = sessionStore.get(session.sessionId);
   res.json(sessionPayload(updated, { session_id: session.sessionId }));
+});
+
+// POST /api/session/heartbeat — resets idle timer; called by frontend every 60s while tab is visible
+router.post('/heartbeat', jwtMiddleware, (req, res) => {
+  const session = sessionStore.getByUser(req.user.userId);
+  if (!session || session.status !== 'active') return res.sendStatus(204);
+  sessionStore.update(session.sessionId, { lastActivityAt: Date.now() });
+  res.sendStatus(204);
 });
 
 // POST /api/session/end — destroy without restarting
